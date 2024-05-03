@@ -1,0 +1,16 @@
+{
+    "decomp_model": "bart_pretrained",
+    "recomp_model": "facebook/bart-large",
+    "eval_model": "gpt-3.5-turbo",
+    "decomp_data": "hotpotqa",
+    "val": true,
+    "test_batch_size": 10,
+    "test_mode": "sp",
+    "eval_complexity": false,
+    "test_epoch": 0,
+    "query_gpt": true,
+    "eval_qualify": true,
+    "extract_attr": true,
+    "max_new_tokens": 100,
+    "abbrevation": true
+}

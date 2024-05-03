@@ -1,0 +1,18 @@
+{
+    "decomp_model": "bart_pretrained",
+    "recomp_model": "FacebookAI/roberta-large",
+    "eval_model": "gpt-3.5-turbo",
+    "decomp_data": "strategyQA",
+    "val": true,
+    "lr": 1e-5,
+    "n_resp": 1,
+    "test_batch_size": 10,
+    "test_mode": "sp",
+    "eval_complexity": true,
+    "test_epoch": 0,
+    "query_gpt": false,
+    "eval_qualify": false,
+    "eval_utility": false,
+    "extract_attr": true,
+    "max_new_tokens": 100
+}

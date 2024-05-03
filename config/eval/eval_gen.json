@@ -1,0 +1,16 @@
+{
+    "decomp_model": "facebook/bart-large",
+    "replace_model": "facebook/bart-large",
+    "eval_model": "gpt-4-turbo",
+    "disriminator": "bert-base-uncased",
+    "data_name": "strategyQA",
+    "decomp_mode": "sp",
+    "gen_mode": "sp",
+    "num_labels": 4,
+    "flu_thd": 3,
+    "sim_thd": 0.7,
+    "mu": 0.1,
+    "max_new_tokens": 100,
+    "temperature": 1,
+    "max_step": 50
+}

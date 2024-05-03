@@ -1,0 +1,7 @@
+{
+    "eval_model": "gpt-4-turbo",
+    "eval_data": "strategyQA",
+    "test_batch_size": 1, 
+    "max_new_tokens": 256,
+    "step_by_step": false
+}

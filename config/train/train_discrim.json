@@ -1,0 +1,10 @@
+{
+    "base_model": "bert-base-uncased",
+    "epochs": 20,
+    "train_batch_size": 10,
+    "test_batch_size":10,
+    "val": true,
+    "lr": 1e-5,
+    "token_len": 512,
+    "num_labels": 4
+}

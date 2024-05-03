@@ -1,0 +1,13 @@
+{
+    "base_model": "bart_pretrained",
+    "decomp_data": "hotpotqa-yn",
+    "epochs": 1,
+    "save_epo": 5,
+    "train_batch_size": 8,
+    "val": true,
+    "lr": 0,
+    "use_peft": false,
+    "n_resp": 5,
+    "test_batch_size": 8,
+    "test_mode": "sp"
+}

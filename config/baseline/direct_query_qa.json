@@ -1,0 +1,7 @@
+{
+    "eval_model": "gpt-3.5-turbo",
+    "eval_data": "hotpotqa",
+    "test_batch_size": 1, 
+    "max_new_tokens": 100,
+    "step_by_step": true
+}

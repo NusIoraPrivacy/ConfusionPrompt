@@ -1,0 +1,6 @@
+{
+    "base_model": "bart_pretrained",
+    "decomp_data": "strategyQA",
+    "test_mode": "sp",
+    "test_epoch": 10
+}

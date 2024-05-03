@@ -1,0 +1,12 @@
+{
+    "base_model": "facebook/bart-large",
+    "decomp_data": "strategyQA",
+    "test_mode": "sp",
+    "epochs": 10,
+    "save_epo": 5,
+    "train_batch_size": 8,
+    "test_batch_size":8,
+    "val": true,
+    "lr": 1e-5,
+    "token_len": 512
+}
