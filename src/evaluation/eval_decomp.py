@@ -294,8 +294,8 @@ if __name__ == '__main__':
             output_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval_{args.eval_model}_v3.json"
             dataset = read_data(data_path)
             dataset = extract_attribute(dataset, args)
-            # outputs = []
-            outputs = read_data(output_path)
+            outputs = []
+            # outputs = read_data(output_path)
             with tqdm(total=len(dataset)) as pbar:
                 for i, item in enumerate(dataset):
                     if i < len(outputs):
@@ -315,14 +315,26 @@ if __name__ == '__main__':
                     pbar.update(1)
         
         # compute complexity based on the number of attributes
-        data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_eval_{args.eval_model}_v3.json"
+        model_name = args.decomp_model.split("/")[-1]
+        data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval_{args.eval_model}_v3.json"
         dataset = read_data(data_path)
-        for mu in [5, 10, 20, 30, 40, 50]:
+        # compute the average token length for the question
+        question_tokens = []
+        for item in dataset:
+            question = item["question"]
+            query_tok = num_tokens_from_string(question)
+            question_tokens.append(query_tok)
+        avg_query_tok = np.mean(question_tokens)
+        print(f"Average token length for the raw question: {avg_query_tok}")
+
+        for mu in [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
             args.mu = 1/mu
             complexities = {}
             query_costs = {}
+            
             for item in dataset:
                 question, attrs, attrs2decomp, decompositions, subanswer = item["question"], item["attributes"], item["has_attrs"], item["decomposition"], item["subanswer"]
+                
                 # convert decompositons into list of sub-questions
                 decomp_list = decompositions[:-1]
                 # create a dictionary for decomposition to attribute
@@ -368,7 +380,7 @@ if __name__ == '__main__':
             print(f"Average complexity for 1/mu={mu}: {avg_complex}")
             print(f"Average query cost for 1/mu={mu}: {avg_query_cost}")
 
-        for mu in [5, 10, 20, 30, 40, 50]:
+        for mu in [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
             args.mu = 1/mu
             # compute the complexity without decompostion
             data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/test_decompose_all.json"
@@ -392,5 +404,5 @@ if __name__ == '__main__':
                     
                 avg_complex = np.mean(complexities)
                 avg_query_cost = np.mean(query_costs)
-                print(f"Average complexity for 1/mu={mu} without decompositions: {avg_complex}")
-                print(f"Average query cost for 1/mu={mu} without decompositions: {avg_query_cost}")
+                print(f"Average complexity for 1/mu={mu} without decompositions in case {suffix}: {avg_complex}")
+                print(f"Average query cost for 1/mu={mu} without decompositions in case {suffix}: {avg_query_cost}")

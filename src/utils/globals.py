@@ -159,6 +159,16 @@ replace_template_multiple = (
     "Sentences: {sentences}"
 )
 
+replace_template_multiple_resp = (
+    "Please replace the phrases {attributes} in the each of the following sentences, "
+    "such that each sentence is fluent and reasonable, "
+    "and the alterntive phrases have irrelevant meaning as {attributes}. "
+    "Return {n_replaces} replacements for each sentence. "
+    "Strictly respond the list of replacement with the following format: "
+    '["sentence1", "sentence2",...] '
+    "Sentence: {sentence}"
+)
+
 extract_phrase_template = (
     'Given the original query "{raw_query}", what is the phrase that replaces "{attribute}" '
     'or its related expression in the revised question "{replace_query}"? '

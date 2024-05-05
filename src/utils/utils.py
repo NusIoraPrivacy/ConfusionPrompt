@@ -293,7 +293,10 @@ def process_has_attr(decomp_string):
     for idx in decomp_list:
         idx = idx.strip()
         if len(idx) > 0:
-            output.append(int(idx))
+            try:
+                output.append(int(idx))
+            except Exception as e:
+                pass
     return output
 
 def create_message_qualify(question, decompositions):
