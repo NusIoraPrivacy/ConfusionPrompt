@@ -380,8 +380,11 @@ if __name__ == '__main__':
             print(f"Average complexity for 1/mu={mu}: {avg_complex}")
             print(f"Average query cost for 1/mu={mu}: {avg_query_cost}")
 
-        for mu in [5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
-            args.mu = 1/mu
+        for mu in [0, 5, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100]:
+            if mu == 0:
+                args.mu =0
+            else:
+                args.mu = 1/mu
             # compute the complexity without decompostion
             data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/test_decompose_all.json"
             dataset = read_data(data_path)
@@ -395,7 +398,10 @@ if __name__ == '__main__':
                     question, answer = item["question"], item["raw_answer"]
                     attributes = query2attr[question]
                     n_attr = len(attributes)
-                    complexity = (1/args.mu) ** n_attr
+                    if args.mu == 0:
+                        complexity = 1
+                    else:
+                        complexity = (1/args.mu) ** n_attr
                     complexities.append(complexity)
                     n_input_toks = num_tokens_from_string(question)
                     n_output_toks =num_tokens_from_string(answer)

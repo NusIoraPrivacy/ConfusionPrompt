@@ -2,6 +2,7 @@ from datasets import Dataset
 import torch
 import json
 import copy
+import random
 from utils.globals import (IGNORE_INDEX, chat_templates, dataset_type,
                     direct_query_template, step_by_step_template,
                     direct_query_template_cls, step_by_step_template_cls)
@@ -484,3 +485,138 @@ class BslData(Dataset):
             label = item["label"]
             labels.append(label)
         return {"sequences": prompts, 'labels': labels, "questions": questions}
+
+class ExtrAttrDataset(Dataset):
+    def __init__(self, inputs, tokenizer, max_words=200, pad=True):
+        self.tokenizer = tokenizer
+        self.max_words = max_words
+        self.pad = pad
+        self.items = []
+        for item in inputs:
+            attrs = item["attributes"]
+            rpl_attrs = item["replace attributes"]
+            raw_query = item["original question"]
+            rpl_query = item["replaced question"]
+            if len(attrs) != len(rpl_attrs):
+                for attr, rpl_attr in zip(attrs, rpl_attrs):
+                    self.items.append({"query": raw_query, "replace query": rpl_query,
+                                        "attribute": attr, "replace attribute": rpl_attr})
+    
+    def __len__(self):
+        return len(self.items)
+    
+    def pad_token(self, input_id, max_words):
+        if self.pad:
+            padding = max_words - input_id.shape[0]
+            if padding > 0:
+                input_id = torch.cat((input_id, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                input_id = input_id[: max_words]
+        return input_id
+    
+    def __getitem__(self, index):
+        examples = []
+        labels = []
+        example_masks = []
+        for i in index:
+            item = self.items[i]
+            raw_query, rpl_query, attr, rpl_attr = item["query"], item["replace query"], item["attribute"], item["replace attribute"]
+
+            # create input ids
+            prompt = f"{raw_query} {self.tokenizer.bos_token} {rpl_query} {self.tokenizer.bos_token} {attr}"
+
+            input_id = torch.tensor(
+                self.tokenizer.encode(prompt), dtype=torch.int64
+            )
+            if self.pad:
+                input_id = self.pad_token(input_id, self.max_words)
+            att_mask = input_id.ge(0)
+            input_id[~att_mask] = 0
+            att_mask = att_mask.float()
+
+            # create target ids
+            label_id = torch.tensor(
+                self.tokenizer.encode(rpl_attr), dtype=torch.int64
+            )
+            if self.pad:
+                label_id = self.pad_token(label_id, 50)
+            label_mask = label_id.ge(0)
+            label_id[~label_mask] = IGNORE_INDEX
+
+            examples.append(input_id)
+            labels.append(label_id)
+            example_masks.append(att_mask)
+
+        return {
+            "input_ids": examples,
+            "labels": labels,
+            "attention_mask": example_masks,
+        }
+
+class ResctructCPDataset(Dataset):
+    def __init__(self, inputs, tokenizer, max_words=512, pad=True, mode="select"):
+        self.tokenizer = tokenizer
+        self.max_words = max_words
+        self.pad = pad
+        self.items = inputs
+        self.mode = mode
+        # inputs: {"question": question, "attribute": attr, "replace sentences": rpt_sents}
+    
+    def __len__(self):
+        return len(self.items)
+    
+    def pad_token(self, input_id, max_words):
+        if self.pad:
+            padding = max_words - input_id.shape[0]
+            if padding > 0:
+                input_id = torch.cat((input_id, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                input_id = input_id[: max_words]
+        if input_id[-1].item() != -1:
+            input_id[-1] = self.tokenizer.eos_token_id
+        return input_id
+    
+    def __getitem__(self, index):
+        examples = []
+        labels = []
+        example_masks = []
+        for i in index:
+            item = self.items[i]
+            raw_query, rpl_queries, attr = item["question"], item["replace sentences"], item["attribute"]
+
+            all_queries = rpl_queries + [raw_query]
+            random.shuffle(all_queries)
+            # create input ids
+            prompt = f" {self.tokenizer.bos_token} ".join(all_queries)
+
+            input_id = torch.tensor(
+                self.tokenizer.encode(prompt), dtype=torch.int64
+            )
+            if self.pad:
+                input_id = self.pad_token(input_id, self.max_words)
+            att_mask = input_id.ge(0)
+            input_id[~att_mask] = 0
+            att_mask = att_mask.float()
+
+            # create target ids
+            if self.mode == "select":
+                label = all_queries.index(raw_query)
+                labels.append(label)
+            else:
+                label_id = torch.tensor(
+                    self.tokenizer.encode(raw_query), dtype=torch.int64
+                )
+                if self.pad:
+                    label_id = self.pad_token(label_id, 50)
+                label_mask = label_id.ge(0)
+                label_id[~label_mask] = IGNORE_INDEX
+                labels.append(label_id)
+
+            examples.append(input_id)
+            example_masks.append(att_mask)
+
+        return {
+            "input_ids": examples,
+            "labels": labels,
+            "attention_mask": example_masks,
+        }

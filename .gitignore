@@ -2,4 +2,5 @@ __pycache__
 save_models
 data
 results
+logs
 src/models/key.py

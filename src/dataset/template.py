@@ -5,6 +5,7 @@ from openai import (
     APIConnectionError,
     APIError,
 )
+from models.key import _API_KEY
 
 import argparse
 
@@ -15,7 +16,7 @@ def create_message(prompt):
                 "content": prompt,
             }
         ]
-    return messages, query_dict
+    return messages
 
 def get_response(client, messages, args):
     """
@@ -70,7 +71,7 @@ if __name__ == "__main__":
     args = parse_args()
     prompt = "hello"
     client = OpenAI(
-            api_key="YOUR_API_KEY",
+            api_key=_API_KEY,
         )
 
     messages = create_message(prompt)

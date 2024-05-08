@@ -4,6 +4,8 @@ import re
 import datasets
 import numpy as np
 import evaluate
+from rouge import Rouge
+from sacrebleu.metrics import BLEU
 
 
 def normalize_answer(s):
@@ -24,13 +26,44 @@ def normalize_answer(s):
 
     return white_space_fix(remove_articles(remove_punc(lower(s))))
 
+# def rouge(predictions, ground_truths):
+#     predictions = [normalize_answer(s) for s in predictions]
+#     ground_truths = [normalize_answer(s) for s in ground_truths]
+#     rouge = evaluate.load('rouge')
+#     results = rouge.compute(predictions=predictions, references=ground_truths)
+#     return results['rougeL']
+
 def rouge(predictions, ground_truths):
+    rouge_scorer = Rouge()
     predictions = [normalize_answer(s) for s in predictions]
     ground_truths = [normalize_answer(s) for s in ground_truths]
-    rouge = evaluate.load('rouge')
-    results = rouge.compute(predictions=predictions, references=ground_truths)
-    return results['rougeL']
+    rougeL_list = []
+    for pred, ref in zip(predictions, ground_truths):
+        try:
+            score = rouge_scorer.get_scores(hyps=pred, refs=ref)
+            rougeL = score[0]["rouge-l"]["f"]
+        except Exception as e:
+            rougeL = 0
+        rougeL_list.append(rougeL)
+    return np.mean(rougeL_list)
 
+# def blue(predictions, ground_truths):
+#     predictions = [normalize_answer(s) for s in predictions]
+#     ground_truths = [[normalize_answer(s)] for s in ground_truths]
+#     blue = evaluate.load("bleu")
+#     results = bleu.compute(predictions=predictions, references=ground_truths)
+#     return results['bleu']
+
+def blue(predictions, ground_truths):
+    bleu_scorer = BLEU(effective_order=True)
+    predictions = [normalize_answer(s) for s in predictions]
+    ground_truths = [normalize_answer(s) for s in ground_truths]
+    blue_list = []
+    for pred, ref in zip(predictions, ground_truths):
+        score = bleu_scorer.sentence_score(hypothesis=pred, references=[ref])
+        score = score.score/100
+        blue_list.append(score)
+    return np.mean(blue_list)
 
 def f1_score(predictions, ground_truths):
     f1_list = []

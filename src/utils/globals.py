@@ -175,6 +175,12 @@ extract_phrase_template = (
     "Please respond only the alternative phrase in the new query."
 )
 
+extract_multiple_phrase_template = (
+    'Given the original query "{raw_query}", what are the phrases that replace "{attribute}" '
+    'or their related expression in the revised question "{replace_query}"? '
+    'Please strictly respond only the list of alternative phrases in the new query, in the format of ["alternative phrase 1", "alternative phrase 2", ...]'
+)
+
 qualify_replace_template = (
     'Given the original query "{raw_query}", does the revised question "{replace_query}" '
     'replaces only the phrases {attributes} or its related expression, '

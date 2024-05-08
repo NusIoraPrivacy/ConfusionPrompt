@@ -129,13 +129,11 @@ def get_model_tokenizer_qa(model_name, args=None):
         base_model = T5ForConditionalGeneration.from_pretrained(model_name, device_map="auto")
     elif 'llama' in model_name:
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = LlamaForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, device_map="auto")
+        base_model = AutoModelForCausalLM.from_pretrained(model_name, num_labels=num_labels, device_map="auto")
     elif "bart" in model_name:
         base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map="auto")
     elif "roberta" in model_name:
-        # base_model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
         base_model = RobertaForCausalLM.from_pretrained(model_name, device_map="auto", is_decoder=True)
-        # base_model = base_model.cuda()
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = tokenizer.pad_token
         tokenizer.eos_token_id = tokenizer.pad_token_id
