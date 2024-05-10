@@ -30,7 +30,7 @@ from openai import (
     APIError,
 )
 
-def get_model_tokenizer(model_name, args):
+def get_model_tokenizer(model_name, args=None):
     if model_name in ("THUDM/chatglm2-6b-int4", "THUDM/chatglm2-6b"):
         base_model = AutoModel.from_pretrained(model_name, trust_remote_code=True) # FP16 by default
         try:
@@ -76,15 +76,16 @@ def get_model_tokenizer(model_name, args):
             tokenizer = AutoTokenizer.from_pretrained(args.base_model)
         base_model = BertLMHeadModel.from_pretrained(model_name).cuda()
 
-    if args.use_peft:
-        peft_config = LoraConfig(
-            task_type=TaskType.CAUSAL_LM, 
-            inference_mode=False, 
-            r=args.lora_r, 
-            lora_alpha=args.lora_alpha, 
-            lora_dropout=args.lora_dropout
-            )
-        base_model = get_peft_model(base_model, peft_config)
+    if args:
+        if args.use_peft:
+            peft_config = LoraConfig(
+                task_type=TaskType.CAUSAL_LM, 
+                inference_mode=False, 
+                r=args.lora_r, 
+                lora_alpha=args.lora_alpha, 
+                lora_dropout=args.lora_dropout
+                )
+            base_model = get_peft_model(base_model, peft_config)
     return tokenizer, base_model
 
 def get_model_tokenizer_cls(model_name, num_labels, args=None):
@@ -126,7 +127,7 @@ def get_model_tokenizer_qa(model_name, args=None):
     except:
         tokenizer = AutoTokenizer.from_pretrained(args.base_model)
     if 't5' in model_name:
-        base_model = T5ForConditionalGeneration.from_pretrained(model_name, device_map="auto")
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map="auto")
     elif 'llama' in model_name:
         tokenizer.pad_token = tokenizer.eos_token
         base_model = AutoModelForCausalLM.from_pretrained(model_name, num_labels=num_labels, device_map="auto")

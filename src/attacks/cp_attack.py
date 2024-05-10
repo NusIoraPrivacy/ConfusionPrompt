@@ -9,9 +9,11 @@ from torch.utils.data import DataLoader
 from transformers import default_data_collator, get_scheduler
 from sentence_transformers import SentenceTransformer, util
 
-from dataset.data import ResctructCPDataset
+from dataset.data import ResctructCPDataset, AttrCPDataset
+from sklearn import metrics
 
 from tqdm import tqdm
+import random
 import argparse
 import json
 import os
@@ -40,7 +42,8 @@ def parse_args():
     parser.add_argument("--num_labels", type=int, default=4, choices=[2, 4])
     parser.add_argument("--disriminator", type=str, default="bert-base-uncased")
     parser.add_argument("--attr_extractor", type=str, default="facebook/bart-large")
-    parser.add_argument("--reconstruct_mode", type=str, default="select", choices=["select", "generate"])
+    parser.add_argument("--reconstruct_mode", type=str, default="generate", choices=["select", "generate"])
+    parser.add_argument("--attr_ratio", type=int, default=1, help = "the ratio between false and true attributes")
     parser.add_argument("--debug", type=str2bool, default=False)
     args = parser.parse_args()
 
@@ -48,6 +51,7 @@ def parse_args():
 
 def get_qualify_inputs(inputs, flu_tokenizer, flu_model, attr_tokenizer, attr_model, sim_model, args):
     out_data = []
+
     for item in tqdm(inputs):
         question, attributes, rpl_sents = item["question"], item["attributes"], item["replace sentences"]
         try:
@@ -56,6 +60,7 @@ def get_qualify_inputs(inputs, flu_tokenizer, flu_model, attr_tokenizer, attr_mo
             continue
 
         qualified_rpt_sents = []
+        qualified_rpl_phrases = []
         for rpl_sent in rpl_sents:
             # evaluate sentence fluency
             rpl_inputs = flu_tokenizer(rpl_sent, return_tensors="pt")
@@ -96,15 +101,23 @@ def get_qualify_inputs(inputs, flu_tokenizer, flu_model, attr_tokenizer, attr_mo
             if max_sim > args.sim_thd:
                 continue
             qualified_rpt_sents.append(rpl_sent)
+            qualified_rpl_phrases.append(phrases)
             if len(qualified_rpt_sents) >= int(1/args.mu) * len(attributes):
                 break
 
         if len(qualified_rpt_sents) >= int(1/args.mu):
             start = 0
             interval = int(len(qualified_rpt_sents) / len(attributes))
-            for attr in attributes:
+            for i, attr in enumerate(attributes):
                 this_rpt_sents = qualified_rpt_sents[start:start+int(1/args.mu)]
-                out_data.append({"question": question, "attribute": attr, "replace sentences": this_rpt_sents})
+                if args.attack_type == "reconstruct":
+                    out_data.append({"question": question, "attribute": attr, "replace sentences": this_rpt_sents})
+                else:
+                    all_rpl_attrs = [phrase[i] for phrase in qualified_rpl_phrases]
+                    random.shuffle(all_rpl_attrs)
+                    selected_rpl_attrs = all_rpl_attrs[:args.attr_ratio]
+                    out_data.append({"question": question, "attribute": attr, "replace sentences": this_rpt_sents, 
+                    "replace attributes": selected_rpl_attrs})
                 start += interval
     return out_data
 
@@ -158,7 +171,7 @@ if __name__ == "__main__":
         train_dataset = ResctructCPDataset(train_data, tokenizer, mode=args.reconstruct_mode)
         test_dataset = ResctructCPDataset(test_data, tokenizer, mode=args.reconstruct_mode)
         train_loader = DataLoader(train_dataset, collate_fn=default_data_collator, batch_size=args.train_batch_size)
-        test_loader = DataLoader(test_dataset, collate_fn=default_data_collator, batch_size=args.train_batch_size)
+        test_loader = DataLoader(test_dataset, collate_fn=default_data_collator, batch_size=args.test_batch_size)
         optimizer, lr_scheduler = init_optim(model, train_loader, args)
 
         best_scores = {"roughL": 0, "blue": 0, "f1": 0, "exact match": 0}
@@ -214,6 +227,7 @@ if __name__ == "__main__":
                             y_pred = y_pred.replace(prompt, "")
                             y_preds.append(y_pred)
                         predictions += y_preds
+                        # print(y_preds)
 
                         this_labels = []
                         for label in batch["labels"]:
@@ -239,5 +253,66 @@ if __name__ == "__main__":
                 best_scores["f1"] = f1
                 best_scores["exact match"] = exact_match
             
+        print("best results: ")
+        print(best_scores)
+    
+    if args.attack_type == "attribute":
+        num_labels = 2
+        tokenizer, model = get_model_tokenizer_cls(args.model, num_labels)
+
+        train_dataset = AttrCPDataset(train_data, tokenizer)
+        test_dataset = AttrCPDataset(test_data, tokenizer)
+        train_loader = DataLoader(train_dataset, collate_fn=default_data_collator, batch_size=args.train_batch_size)
+        test_loader = DataLoader(test_dataset, collate_fn=default_data_collator, batch_size=args.train_batch_size)
+        optimizer, lr_scheduler = init_optim(model, train_loader, args)
+
+        best_scores = {"f1": 0, "precision": 0, "recall": 0, "accuracy": 0}
+        best_f1 = 0
+        for epoch in range(args.epochs):
+            with tqdm(total=len(train_loader)) as pbar:
+                for i, batch in enumerate(train_loader):
+                    for key in batch:
+                        batch[key] = batch[key].to(model.device)
+                    # print(batch["input_ids"])
+                    loss = model(**batch).loss
+                    loss.backward()
+                    optimizer.step()
+                    lr_scheduler.step()
+                    optimizer.zero_grad()
+                    pbar.update(1)
+                    pbar.set_postfix(loss=loss.item())
+            
+            labels = []
+            predictions = []
+            with tqdm(total=len(test_loader)) as pbar:
+                for i, batch in enumerate(test_loader):
+                    for key in batch:
+                        batch[key] = batch[key].to(model.device)
+                        with torch.no_grad():
+                            outputs = model(
+                                    input_ids = batch["input_ids"], 
+                                    attention_mask = batch["attention_mask"])
+                            logits = outputs.logits
+                            y_preds = torch.argmax(logits, -1)
+                        predictions += y_preds.tolist()
+                        labels += batch["labels"].tolist()
+                        precision = metrics.precision_score(labels, predictions)
+                        recall = metrics.recall_score(labels, predictions)
+                        f1 = metrics.f1_score(labels, predictions)
+                        acc = metrics.accuracy_score(labels, predictions)
+
+                        pbar.update(1)
+                        pbar.set_postfix(precision=precision, recall=recall, f1=f1, acc=acc)
+            # print(labels)
+            # print(predictions)
+            print(f"Precision for epoch {epoch}: {precision}")
+            print(f"Recall for epoch {epoch}: {recall}")
+            print(f"F1 for epoch {epoch}: {f1}")
+            print(f"accuracy for epoch {epoch}: {acc}")
+            if best_scores["f1"] < f1:
+                best_scores["precision"] = precision
+                best_scores["recall"] = recall
+                best_scores["f1"] = f1
+                best_scores["accuracy"] = acc
         print("best results: ")
         print(best_scores)

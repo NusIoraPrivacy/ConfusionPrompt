@@ -142,6 +142,22 @@ has_attr_template = (
     "If there's no such sentence, return an empty list []."
 )
 
+replace_template_phrase = (
+    "Given the question {sentence}, please replace the phrases {attributes}, "
+    "such that the question is fluent and reasonable, "
+    "and the alterntive phrases have irrelevant meaning as {attributes}. "
+    "Stricly return in the format of list of alternative attributes."
+)
+
+replace_template_phrase_multiple = (
+    "Given the question {sentence}, please replace the phrases {attributes}, "
+    "such that the question is fluent and reasonable, "
+    "and the alterntive phrases have irrelevant meaning as {attributes}. "
+    "Return {n_replaces} lists of alternative attributes for the sentence. "
+    "Stricly return in the format of the list of alternative attributes: "
+    '[[list1 of alternative phrases], [list2 of alternative phrases],...] '
+)
+
 replace_template = (
     "Please replace the phrases {attributes} in the following sentence, "
     "such that the sentence is fluent and reasonable, "
@@ -330,7 +346,8 @@ emb_norm_dict = {
     
 logit_range_dict = {
     "eugenesiow/bart-paraphrase": (-3, 3),
-    "meta-llama/Llama-2-7b-chat-hf": (-8, 8)
+    "meta-llama/Llama-2-7b-chat-hf": (-8, 8),
+    "google/flan-t5-xl": (-80, 7.5)
         }
 
 model_causal = {

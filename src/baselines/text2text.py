@@ -1,7 +1,8 @@
 from utils.param import parse_args
-from utils.utils import load_bsldataset, write_list, read_data, get_model_tokenizer, get_eval_model
+from utils.utils import write_list, read_data, get_model_tokenizer, get_eval_model
 from utils.globals import *
 from baselines.bsl_utils import *
+from dataset.get_data import load_bsldataset
 
 from models.gpt import *
 

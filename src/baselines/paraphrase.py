@@ -7,9 +7,10 @@ import torch
 from torch.utils.data import DataLoader
 
 from utils.param import parse_args
-from utils.utils import load_bsldataset, write_list, read_data, get_eval_model
+from utils.utils import write_list, read_data, get_eval_model
 from utils.globals import *
 from baselines.bsl_utils import *
+from dataset.get_data import load_bsldataset
 
 import numpy as np
 from tqdm import tqdm
@@ -75,7 +76,6 @@ def paraphrase(tokenizer, model, question, args):
     n = int(1.2 * len(input_ids[0]))
     cnt = 0
     genearated_tokens = []
-    finished = False
     lower_bound = logit_range_dict[args.para_model][0]
     upper_bound = logit_range_dict[args.para_model][1]
     outputs = model.generate(input_ids, do_sample=True, temperature = (2*(upper_bound-lower_bound)*n/args.epsilon), max_new_tokens=n)

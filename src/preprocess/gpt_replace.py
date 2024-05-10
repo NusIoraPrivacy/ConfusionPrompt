@@ -6,6 +6,7 @@ import itertools
 import argparse
 import json
 import os
+import time
 from openai import OpenAI
 from openai import (
     RateLimitError,
@@ -22,18 +23,20 @@ GEN_REPLACE = True
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument( "--gen_ft_sample", type=str2bool, default=False)
-    parser.add_argument( "--mutliple_resp", type=str2bool, default=False)
+    parser.add_argument( "--gen_ft_sample_phrase", type=str2bool, default=True)
+    parser.add_argument( "--mutliple_resp", type=str2bool, default=True)
     parser.add_argument( "--gen_replace", type=str2bool, default=False)
+    parser.add_argument( "--gen_replace_phrase", type=str2bool, default=False)
     parser.add_argument("--temperature", type=float, default=1,
         help = "temperature for text generation")
     parser.add_argument("--max_tokens", type=int, default=1000,
         help = "max new token for text generation")
     parser.add_argument("--max_new_tokens", type=int, default=1000,
         help = "max new token for text generation")
-    parser.add_argument("--n_replaces", type=int, default=50,
+    parser.add_argument("--n_replaces", type=int, default=10,
         help = "number of replacements for each question")
     parser.add_argument("--eval_model", type=str, default="gpt-4-turbo")
-    parser.add_argument("--extract_phrase", type=str2bool, default=True)
+    parser.add_argument("--extract_phrase", type=str2bool, default=False)
     parser.add_argument("--extract_phrase_ft", type=str2bool, default=False)
     args = parser.parse_args()
 
@@ -144,6 +147,50 @@ if __name__ == "__main__":
             
             file_path = f"{_ROOT_PATH}/data/strategyQA/replace_gptft_samples.jsonl"
             write_list(file_path, ft_dataset)
+    
+    if args.gen_ft_sample_phrase:
+        if args.mutliple_resp:
+            client = OpenAI(api_key=_API_KEY)
+            data_path = f"{_ROOT_PATH}/results/strategyQA/replace/question_attrs.json"
+            with open(data_path)  as f:
+                dataset = json.load(f)
+            temp = {}
+            cnt = 0
+            for key in dataset:
+                temp[key] = dataset[key]
+                cnt += 1
+                if cnt >= 50:
+                    break
+            dataset = temp
+            ft_dataset = []
+
+            for question, attrs in tqdm(dataset.items()):
+                attr_combs = []
+                for r in range(1, len(attrs) + 1):
+                    attr_combs.extend(list(itertools.combinations(attrs, r)))
+                for attr_comb in attr_combs:
+                    attr_comb = list(attr_comb)
+                    for n_rpl in [5, 10]:
+                        prompt = replace_template_phrase_multiple.format(attributes=attr_comb, sentence=question, n_replaces=n_rpl)
+                        success = False
+                        n_try = 0
+                        while not success:
+                            replace_phrases = get_response(client, prompt, args)
+                            try:
+                                replace_phrases = eval(replace_phrases)
+                                if len(replace_phrases) == n_rpl and len(replace_phrases[0])==len(attr_comb):
+                                    success = True
+                                else:
+                                    n_try += 1
+                            except Exception as e:
+                                n_try += 1
+                            if n_try >= 5:
+                                break
+                        if success:
+                            message = {"messages": [{"role": "user", "content": prompt}, {"role": "assistant", "content": str(replace_phrases)}]}
+                            ft_dataset.append(message)
+                            file_path = f"{_ROOT_PATH}/data/strategyQA/replace_gptft_phrases_multiple.jsonl"
+                            write_list(file_path, ft_dataset)
 
     if args.gen_replace:
         data_path = f"{_ROOT_PATH}/results/strategyQA/replace/question_attrs.json"
@@ -184,6 +231,43 @@ if __name__ == "__main__":
                 outputs.append(item)
                 with open(out_path, "w") as f:
                     json.dump(outputs, f, indent=4)
+    
+    if args.gen_replace_phrase:
+        data_path = f"{_ROOT_PATH}/results/strategyQA/replace/question_attrs.json"
+        with open(data_path)  as f:
+            dataset = json.load(f)
+        client = OpenAI(api_key=_API_KEY)
+        args.eval_model = "ft:gpt-3.5-turbo-1106:personal:multiple-replace:9LOiijuO"
+
+        out_path = f"{_ROOT_PATH}/results/strategyQA/replace/replace_phrase_candidates.json"
+        outputs = []
+        for question, attrs in tqdm(dataset.items()):
+            attr_combs = []
+            for r in range(1, len(attrs) + 1):
+                attr_combs.extend(list(itertools.combinations(attrs, r)))
+            for attr_comb in attr_combs:
+                attr_comb = list(attr_comb)
+                if args.mutliple_resp:
+                    prompt = replace_template_phrase_multiple.format(attributes=attr_comb, sentence=question, n_replaces=args.n_replaces)
+                    success = False
+                    n_try = 0
+                    while not success:
+                        replace_phrases = get_response(client, prompt, args)
+                        try:
+                            replace_phrases = eval(replace_phrases)
+                            if len(replace_phrases) == args.n_replaces and len(replace_phrases[0])==len(attr_comb):
+                                success = True
+                            else:
+                                n_try += 1
+                        except Exception as e:
+                            n_try += 1
+                        if n_try >= 5:
+                            break
+                    item = {"question": question, "attributes": attr_comb, "replace attributes": replace_phrases}
+                    outputs.append(item)
+                    with open(out_path, "w") as f:
+                        json.dump(outputs, f, indent=4)
+
     
     if args.extract_phrase_ft:
         data_path = f"{_ROOT_PATH}/results/strategyQA/replace/replace_candidates.json"
