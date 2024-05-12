@@ -165,6 +165,23 @@ replace_template = (
     "{sentence}"
 )
 
+identify_attr_template = (
+    "Please identify all the key components in the following sentence, "
+    "and strictly return a list of components in the format of "
+    '["component 1", "component 2", ...]. '
+    "Sentence: {sentence}"
+)
+
+replace_review_template = (
+    "Please replaces the key components {attributes} in the following sentence, "
+    "such that the sentence is fluent and reasonable, "
+    "and the alterntive components have irrelevant meaning as the original sentence. "
+    "Return {n_replaces} replacements for the sentence. "
+    "Strictly respond the list of replacement with the following format: "
+    '["sentence1", "sentence2",...] '
+    "Sentence: {sentence}"
+)
+
 replace_template_multiple = (
     "Please replace the phrases {attributes} in the each of the following sentences, "
     "such that each sentence is fluent and reasonable, "
@@ -366,4 +383,9 @@ token_cost_dict = {
     "gpt-4": (30/1000000, 60/1000000),
     "gpt-3.5-turbo": (0.5/1000000, 1.5/1000000),
     "gpt-4-turbo": (10/1000000, 30/1000000),
+}
+
+cls_label_dict = {
+    "tweet": {"female": 0, "male": 1, "brand": 2},
+    "strategyQA": {"no": 0, "yes": 1}
 }

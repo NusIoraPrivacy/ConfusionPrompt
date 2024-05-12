@@ -5,7 +5,8 @@ import copy
 import random
 from utils.globals import (IGNORE_INDEX, chat_templates, dataset_type,
                     direct_query_template, step_by_step_template,
-                    direct_query_template_cls, step_by_step_template_cls)
+                    direct_query_template_cls, step_by_step_template_cls,
+                    cls_label_dict)
 
 class DecompDataset(Dataset):
     def __init__(self, decomp_inputs, tokenizer, max_words=100, pad=True):
@@ -749,16 +750,16 @@ class AttrDataset(Dataset):
         self.items = []
         for sample in inputs:
             raw_query, priv_query, attrs, rpl_attrs = sample["question"], sample["privatized question"], sample["attributes"], sample["replace attributes"]
-            # for attr in attrs:
-            #     this_item = {"privatized question": priv_query, "attributes": attr, "label": 1}
-            #     self.items.append(this_item)
-            # for rpl_attr in rpl_attrs:
-            #     this_item = {"privatized question": priv_query, "attributes": rpl_attr, "label": 0}
-            #     self.items.append(this_item)
-            this_item = {"privatized question": priv_query, "attributes": attrs, "label": 1}
-            self.items.append(this_item)
-            this_item = {"privatized question": priv_query, "attributes": rpl_attrs, "label": 0}
-            self.items.append(this_item)
+            for attr in attrs:
+                this_item = {"privatized question": priv_query, "attributes": attr, "label": 1}
+                self.items.append(this_item)
+            for rpl_attr in rpl_attrs:
+                this_item = {"privatized question": priv_query, "attributes": rpl_attr, "label": 0}
+                self.items.append(this_item)
+            # this_item = {"privatized question": priv_query, "attributes": attrs, "label": 1}
+            # self.items.append(this_item)
+            # this_item = {"privatized question": priv_query, "attributes": rpl_attrs, "label": 0}
+            # self.items.append(this_item)
 
     def __len__(self):
         return len(self.items)
@@ -794,6 +795,122 @@ class AttrDataset(Dataset):
             att_mask = att_mask.float()
 
             labels.append(label)
+            examples.append(input_id)
+            example_masks.append(att_mask)
+
+        return {
+            "input_ids": examples,
+            "labels": labels,
+            "attention_mask": example_masks,
+        }
+
+class AttrClsDataset(Dataset):
+    def __init__(self, inputs, tokenizer, max_words=512, pad=True, args=None):
+        # inputs: {"question": question, "attribute": attr, "replace sentences": rpt_sents, "replace attributes": rpl_attrs}
+        self.tokenizer = tokenizer
+        self.max_words = max_words
+        self.pad = pad
+        self.items = inputs
+        self.args = args
+
+    def __len__(self):
+        return len(self.items)
+    
+    def pad_token(self, input_id, max_words):
+        if self.pad:
+            padding = max_words - input_id.shape[0]
+            if padding > 0:
+                input_id = torch.cat((input_id, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                input_id = input_id[: max_words]
+        if input_id[-1].item() != -1:
+            input_id[-1] = self.tokenizer.eos_token_id
+        return input_id
+    
+    def __getitem__(self, index):
+        examples = []
+        labels = []
+        example_masks = []
+        for i in index:
+            item = self.items[i]
+            priv_query, attr = item["privatized question"], item["attributes"]
+
+            # create input ids
+            input_id = torch.tensor(
+                self.tokenizer.encode(priv_query), dtype=torch.int64
+            )
+            if self.pad:
+                input_id = self.pad_token(input_id, self.max_words)
+            att_mask = input_id.ge(0)
+            input_id[~att_mask] = 0
+            att_mask = att_mask.float()
+
+            # create label
+            label = cls_label_dict[self.args.data_name][attr]
+            labels.append(label)
+            examples.append(input_id)
+            example_masks.append(att_mask)
+
+        return {
+            "input_ids": examples,
+            "labels": labels,
+            "attention_mask": example_masks,
+        }
+
+class TweetRplDataset(Dataset):
+    def __init__(self, inputs, tokenizer, max_words=512, pad=True, args=None):
+        # inputs: {"question": question, "attribute": attr, "replace sentences": rpt_sents, "replace attributes": rpl_attrs}
+        self.tokenizer = tokenizer
+        self.max_words = max_words
+        self.pad = pad
+        self.items = inputs
+        self.args = args
+
+    def __len__(self):
+        return len(self.items)
+    
+    def pad_token(self, input_id, max_words):
+        if self.pad:
+            padding = max_words - input_id.shape[0]
+            if padding > 0:
+                input_id = torch.cat((input_id, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                input_id = input_id[: max_words]
+        if input_id[-1].item() != -1:
+            input_id[-1] = self.tokenizer.eos_token_id
+        return input_id
+    
+    def __getitem__(self, index):
+        examples = []
+        labels = []
+        example_masks = []
+        for i in index:
+            item = self.items[i]
+            text, attr_list, replace_text = item["text"], item["attributes"], item["replacement"]
+            if not isinstance(replace_text, str):
+                continue
+            # create input ids
+            prompt = text
+            prompt = prompt + f" {self.tokenizer.bos_token} " + f" {self.tokenizer.bos_token} ".join(attr_list)
+            input_id = torch.tensor(
+                self.tokenizer.encode(prompt), dtype=torch.int64
+            )
+            if self.pad:
+                input_id = self.pad_token(input_id, self.max_words)
+            att_mask = input_id.ge(0)
+            input_id[~att_mask] = 0
+            att_mask = att_mask.float()
+
+            # create label
+            label_id = torch.tensor(
+                self.tokenizer.encode(replace_text), dtype=torch.int64
+            )
+            if self.pad:
+                label_id = self.pad_token(label_id, 200)
+            label_mask = label_id.ge(0)
+            label_id[~label_mask] = IGNORE_INDEX
+
+            labels.append(label_id)
             examples.append(input_id)
             example_masks.append(att_mask)
 

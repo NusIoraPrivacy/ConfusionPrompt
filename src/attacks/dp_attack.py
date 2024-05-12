@@ -10,8 +10,9 @@ from torch.utils.data import DataLoader
 from transformers import default_data_collator, get_scheduler
 from sentence_transformers import SentenceTransformer, util
 
-from dataset.data import ResctructDataset, AttrDataset
+from dataset.data import ResctructDataset, AttrDataset, AttrClsDataset
 from sklearn import metrics
+import pandas as pd
 
 from tqdm import tqdm
 import random
@@ -24,7 +25,7 @@ _ROOT_PATH = os.path.dirname(os.path.dirname(parent_dir))
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", type=str, default="facebook/bart-large")
+    parser.add_argument("--model", type=str, default="FacebookAI/roberta-large")
     parser.add_argument("--para_model", type=str, default="eugenesiow/bart-paraphrase",
                         choices=["google/flan-t5-xl", "eugenesiow/bart-paraphrase"])
     parser.add_argument("--t2t_model", type=str, default="facebook/bart-large")
@@ -35,18 +36,19 @@ def parse_args():
     parser.add_argument("--max_new_tokens", type=int, default=50,
         help = "max new token for text generation")
     parser.add_argument("--lr", type=float, default=1e-5, help = "learning rate")
-    parser.add_argument("--epochs", type=int, default=20, help = "training epochs")
+    parser.add_argument("--epochs", type=int, default=5, help = "training epochs")
     parser.add_argument("--train_batch_size", type=int, default=10)
     parser.add_argument("--test_batch_size", type=int, default=10)
-    parser.add_argument("--data_name", type=str, default="strategyQA")
+    parser.add_argument("--data_name", type=str, default="tweet", choices=["strategyQA", "tweet"])
     parser.add_argument("--delta", type=float, default=1e-4, help="privacy budget")
-    parser.add_argument("--epsilon", type=float, default=10, help="privacy budget")
-    parser.add_argument("--dp_type", type=str, default="text2text", choices=["text2text", "paraphrase"])
+    parser.add_argument("--epsilon", type=float, default="inf", help="privacy budget")
+    parser.add_argument("--dp_type", type=str, default="paraphrase", choices=["text2text", "paraphrase"])
     parser.add_argument("--attack_type", type=str, default="attribute", choices=["reconstruct", "attribute"])
     parser.add_argument("--gen_sample", type=str2bool, default=True)
     parser.add_argument("--gen_replacement", type=str2bool, default=False)
     parser.add_argument("--attack_flag", type=str2bool, default=True)
     parser.add_argument("--debug", type=str2bool, default=False)
+    parser.add_argument("--sample_train", type=str2bool, default=True)
     args = parser.parse_args()
 
     return args
@@ -84,41 +86,59 @@ if __name__ == "__main__":
                     json.dump(output, f, indent=4)
 
     if args.gen_sample:
-        data_path = f"{_ROOT_PATH}/results/{args.data_name}/replace/question_attrs_replace.json"
-        with open(data_path) as f:
-            dataset = json.load(f)
+        if args.data_name == "tweet":
+            data_path = f"{_ROOT_PATH}/data/attr_infer/gender_dataset.csv"
+            dataset = pd.read_csv(data_path, encoding='iso-8859-1')
+            dataset = dataset[(dataset["gender"] != "unknown") & (~dataset["gender"].isna())]
+            dataset = dataset[~dataset["text"].isna()]
+            text_list = dataset["text"].to_list()
+            gender_list = dataset["gender"].to_list()
+            dataset = {key: value for key, value in zip(text_list, gender_list)}
+        else:
+            data_path = f"{_ROOT_PATH}/results/{args.data_name}/replace/question_attrs_replace.json"
+            with open(data_path) as f:
+                dataset = json.load(f)
         if args.debug:
             temp = {}
             for i, key in enumerate(dataset):
                 if i >= 20:
                     break
                 temp[key] = dataset[key]
-                
             dataset = temp
+        output_dir = f"{_ROOT_PATH}/results/{args.data_name}/attack/dp"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
         if args.dp_type == "paraphrase":
             para_tokenizer, para_model = get_model_tokenizer_qa(args.para_model)
             privatized_dataset = []
             for question, attr_dict in tqdm(dataset.items()):
-                if "paraphrase" not in args.para_model:
-                    prompt = f"Please paraphrase the following question: {question}"
+                if args.epsilon == float("inf"):
+                    para_question = question
                 else:
-                    prompt = question
-                input_ids = para_tokenizer.encode(prompt, return_tensors='pt').to(para_model.device)
-                n = int(1.2 * len(input_ids[0]))
-                cnt = 0
-                lower_bound = logit_range_dict[args.para_model][0]
-                upper_bound = logit_range_dict[args.para_model][1]
-                outputs = para_model.generate(input_ids, do_sample=True, temperature = (2*(upper_bound-lower_bound)*n/args.epsilon), max_new_tokens=n)
-                # outputs = para_model.generate(input_ids, do_sample=True, temperature = 1, max_new_tokens=n)
-                para_question = para_tokenizer.decode(token_ids = outputs[0], skip_special_tokens=True)
-                para_question = para_question.replace(prompt, "")
+                    if "paraphrase" not in args.para_model:
+                        prompt = f"Please paraphrase the following text: {question}"
+                    else:
+                        prompt = question
+                    input_ids = para_tokenizer.encode(prompt, return_tensors='pt').to(para_model.device)
+                    n = int(1.2 * len(input_ids[0]))
+                    cnt = 0
+                    lower_bound = logit_range_dict[args.para_model][0]
+                    upper_bound = logit_range_dict[args.para_model][1]
+                    outputs = para_model.generate(input_ids, do_sample=True, temperature = (2*(upper_bound-lower_bound)*n/args.epsilon), max_new_tokens=n)
+                    # outputs = para_model.generate(input_ids, do_sample=True, temperature = 1, max_new_tokens=n)
+                    para_question = para_tokenizer.decode(token_ids = outputs[0], skip_special_tokens=True)
+                    para_question = para_question.replace(prompt, "")
                 # print("original quesiont:", question)
                 # print("paraphrase question:", para_question)
-                this_item = {"question": question, "attributes": attr_dict["attributes"], 
-                            "privatized question": para_question, "replace attributes": attr_dict["replace attributes"]}
+                if args.data_name == "tweet":
+                    this_item = {"question": question, "attributes": attr_dict, 
+                                "privatized question": para_question}
+                else:
+                    this_item = {"question": question, "attributes": attr_dict["attributes"], 
+                                "privatized question": para_question, "replace attributes": attr_dict["replace attributes"]}
                 privatized_dataset.append(this_item)
             model_name = args.para_model.split("/")[-1]
-            output_path = f"{_ROOT_PATH}/results/{args.data_name}/attack/dp/para_{model_name}_questions_eps_{args.epsilon}.json"
+            output_path = f"{output_dir}/para_{model_name}_questions_eps_{args.epsilon}.json"
             with open(output_path, "w") as f:
                 json.dump(privatized_dataset, f, indent=4)
         
@@ -126,16 +146,23 @@ if __name__ == "__main__":
             t2t_tokenizer, t2t_model = get_model_tokenizer(args.t2t_model)
             privatized_dataset = []
             for question, attr_dict in tqdm(dataset.items()):
+                if args.epsilon == float("inf"):
+                    t2t_question = question
+                else:
                 # print(f"Original question: {question}")
-                input_ids = t2t_tokenizer.encode(question, return_tensors='pt').squeeze().to(t2t_model.device)
-                input_ids = text2text_priv(input_ids, t2t_tokenizer, t2t_model, args)
-                t2t_question = t2t_tokenizer.decode(token_ids = input_ids, skip_special_tokens=True)
+                    input_ids = t2t_tokenizer.encode(question, return_tensors='pt').squeeze().to(t2t_model.device)
+                    input_ids = text2text_priv(input_ids, t2t_tokenizer, t2t_model, args)
+                    t2t_question = t2t_tokenizer.decode(token_ids = input_ids, skip_special_tokens=True)
                 # print(f"Privatized question: {sent}")
-                this_item = {"question": question, "attributes": attr_dict["attributes"],  
-                "privatized question": t2t_question, "replace attributes": attr_dict["replace attributes"]}
+                if args.data_name == "tweet":
+                    this_item = {"question": question, "attributes": attr_dict, 
+                                "privatized question": t2t_question}
+                else:
+                    this_item = {"question": question, "attributes": attr_dict["attributes"],  
+                    "privatized question": t2t_question, "replace attributes": attr_dict["replace attributes"]}
                 privatized_dataset.append(this_item)
             model_name = args.t2t_model.split("/")[-1]
-            output_path = f"{_ROOT_PATH}/results/{args.data_name}/attack/dp/t2t_{model_name}_questions_eps_{args.epsilon}.json"
+            output_path = f"{output_dir}/t2t_{model_name}_questions_eps_{args.epsilon}.json"
             with open(output_path, "w") as f:
                 json.dump(privatized_dataset, f, indent=4)
     
@@ -145,16 +172,21 @@ if __name__ == "__main__":
             model_name = args.para_model.split("/")[-1]
         else:
             model_name = args.t2t_model.split("/")[-1]
+
         data_path = f"{_ROOT_PATH}/results/{args.data_name}/attack/dp/{prefix}_{model_name}_questions_eps_{args.epsilon}.json"
         with open(data_path) as f:
             dataset = json.load(f)
+        if args.sample_train:
+            dataset = dataset[:10000]
         if args.debug:
             dataset = dataset[:20]
             args.epochs = 5
         if args.attack_type == "reconstruct":
             tokenizer, model = get_model_tokenizer_qa(args.model)
         else:
-            tokenizer, model = get_model_tokenizer_cls(args.model, 2)
+            n_labels = len(cls_label_dict[args.data_name])
+            f1_avg = 'binary' if n_labels == 2 else "micro"
+            tokenizer, model = get_model_tokenizer_cls(args.model, n_labels)
         n_trains = int(len(dataset) * 0.8)
         train_data = dataset[:n_trains]
         test_data = dataset[n_trains:]
@@ -162,8 +194,12 @@ if __name__ == "__main__":
             train_dataset = ResctructDataset(train_data, tokenizer)
             test_dataset = ResctructDataset(test_data, tokenizer)
         else:
-            train_dataset = AttrDataset(train_data, tokenizer)
-            test_dataset = AttrDataset(test_data, tokenizer)
+            if args.data_name == "tweet":
+                train_dataset = AttrClsDataset(train_data, tokenizer,args=args)
+                test_dataset = AttrClsDataset(test_data, tokenizer,args=args)
+            else:
+                train_dataset = AttrDataset(train_data, tokenizer)
+                test_dataset = AttrDataset(test_data, tokenizer)
 
         train_loader = DataLoader(train_dataset, collate_fn=default_data_collator, batch_size=args.train_batch_size)
         test_loader = DataLoader(test_dataset, collate_fn=default_data_collator, batch_size=args.test_batch_size)
@@ -242,9 +278,9 @@ if __name__ == "__main__":
                         predictions += y_preds
                         labels += batch["labels"].tolist()
                         
-                        precision = metrics.precision_score(labels, predictions)
-                        recall = metrics.recall_score(labels, predictions)
-                        f1 = metrics.f1_score(labels, predictions)
+                        precision = metrics.precision_score(labels, predictions, average=f1_avg)
+                        recall = metrics.recall_score(labels, predictions, average=f1_avg)
+                        f1 = metrics.f1_score(labels, predictions, average=f1_avg)
                         acc = metrics.accuracy_score(labels, predictions)
 
                         pbar.update(1)
