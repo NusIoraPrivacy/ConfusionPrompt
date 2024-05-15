@@ -1,5 +1,5 @@
 {
-    "eval_model": "gpt-4",
+    "eval_model": "gpt-4-turbo",
     "recomp_data": "hotpotqa",
     "use_attr": false,
     "extract_attr": false,
@@ -7,5 +7,8 @@
     "max_new_tokens": 75,
     "extract_decomp": false,
     "val": false,
-    "redone_decomp": false
+    "redone_decomp": false,
+    "use_context": true,
+    "abbrevation": true,
+    "gen_answer": true
 }

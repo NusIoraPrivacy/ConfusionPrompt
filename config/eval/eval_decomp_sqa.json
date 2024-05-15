@@ -3,7 +3,7 @@
     "recomp_model": "FacebookAI/roberta-large",
     "eval_model": "gpt-4-turbo",
     "decomp_data": "strategyQA",
-    "val": true,
+    "recomp_data": "strategyQA", 
     "lr": 1e-5,
     "n_resp": 1,
     "test_batch_size": 10,

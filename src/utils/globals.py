@@ -8,7 +8,11 @@ decomp_dict = {
                "test": "dev.json",
                "question": "question",
                "decomp": "decomposition"},
-    "hotpotqa":{"train": "train_attrs_decomp_gpt-4_ans_final.json", 
+    "hotpotqa-gpt":{"train": "train_attrs_decomp_gpt-4_ans_final.json", 
+               "test": "hotpot_dev_distractor_v1.json",
+               "question": "question",
+               "decomp": "decomposition"},
+    "hotpotqa":{"train": "hotpot_train_v1.1.json", 
                "test": "hotpot_dev_distractor_v1.json",
                "question": "question",
                "decomp": "decomposition"},
@@ -240,6 +244,11 @@ cls_bool_template = "{question} Please answer \"yes\" or \"no\" only."
 
 subqa_template = "{question} Please answer as short as possible."
 
+context_template = (
+    "You are provided with the following the context to answer a question: "
+    "{context}"
+)
+
 direct_query_template = (
     "Given a question, please provide your answer as concise as possible. \n"
     "Example 1:\n"
@@ -374,7 +383,8 @@ model_causal = {
     "FacebookAI/roberta-base": True, 
     "FacebookAI/roberta-large": True,
     "deepset/roberta-base-squad2": True,
-    "deepset/roberta-large-squad2": True
+    "deepset/roberta-large-squad2": True,
+    "google-t5/t5-large": False
 }
 
 IGNORE_INDEX = -100

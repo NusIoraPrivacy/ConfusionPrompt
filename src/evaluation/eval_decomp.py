@@ -7,6 +7,7 @@ from models.causal_llm import *
 from models.gpt import *
 
 from dataset.data import RecompDataset
+from dataset.get_data import load_context
 
 from torch.utils.data import DataLoader
 from transformers import default_data_collator
@@ -16,6 +17,7 @@ import json
 from sklearn.metrics import accuracy_score, roc_auc_score
 from tqdm import tqdm
 import numpy as np
+import random
 
 def create_prompt_qualify(question, decompositions, args):
     chat_template = chat_templates[args.eval_model]
@@ -51,7 +53,14 @@ def reformat_dataset(dataset, args):
     file_name = decomp_dict[args.decomp_data]["test"]
     data_path = f"{args.root_path}/data/{args.decomp_data}/{file_name}"
     with open(data_path) as f:
-        ref_dataset = json.load(f)
+        if args.decomp_data == "musique":
+            with open(data_path) as f:
+                ref_dataset = []
+                for line in f:
+                    this_item = json.loads(line)
+                    ref_dataset.append(this_item)
+        else:
+            ref_dataset = json.load(f)
     for item in ref_dataset:
         if args.decomp_data == "strategyQA":
             label = item["answer"]
@@ -59,7 +68,7 @@ def reformat_dataset(dataset, args):
         elif args.decomp_data == "hotpotqa-yn":
             label = item["answer"]
             label = 1 if label.lower() == "yes" else 0
-        elif args.decomp_data == "hotpotqa":
+        elif args.decomp_data in ("hotpotqa", "musique"):
             label = item["answer"]
         question = format_question(item["question"])
         question2label[question] = label
@@ -74,10 +83,14 @@ def reformat_dataset(dataset, args):
                 decomp_list = decomp.split("<s>")
                 decomp_list = [sent.strip() for sent in decomp_list]
                 label = question2label[question]
+                context = ""
+                if args.use_context:
+                    context = question2context[question]
                 item = {
                     "question": question,
                     "decomposition": decomp_list,
                     "sub-answers": subans,
+                    "context": context,
                     "label": label
                 }
                 output.append(item)
@@ -137,6 +150,9 @@ if __name__ == '__main__':
     args = parse_args()
     data_type = dataset_type[args.decomp_data]
 
+    if args.use_context:
+        question2context = load_context(args.decomp_data, split="test", args=args)
+
     if args.eval_qualify:
         model = get_eval_model(args, model_name = "gpt-4-turbo")
         model_name = args.decomp_model.split("/")[-1]
@@ -165,18 +181,25 @@ if __name__ == '__main__':
         model = get_eval_model(args)
         # filter the qualified decomp
         model_name = args.decomp_model.split("/")[-1]
-        data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval.json"
-        dataset = read_data(data_path)
-        temp = []
-        for item in dataset:
-            quallify_cands = item["qualified decomp"]
-            quallify_cands = process_candidate(quallify_cands)
-            if len(quallify_cands) > 0:
-                decomps = item["decomposition"]
-                item["decomposition"] = [decomps[i] for i in quallify_cands]
-                temp.append(item)
-        dataset = temp
-
+        if args.skip_eval_quality:
+            data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}.json"
+            dataset = read_data(data_path)
+            dataset = sing2multi(["question"], ["decomposition"], dataset)
+            random.shuffle(dataset)
+            dataset = dataset[:200]
+        else:
+            data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval.json"
+            dataset = read_data(data_path)
+            temp = []
+            for item in dataset:
+                quallify_cands = item["qualified decomp"]
+                quallify_cands = process_candidate(quallify_cands)
+                if len(quallify_cands) > 0:
+                    decomps = item["decomposition"]
+                    item["decomposition"] = [decomps[i] for i in quallify_cands]
+                    temp.append(item)
+            dataset = temp
+        # print(dataset[:2])
         # extract answers from qualified decompositions
         output = []
         output_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval_{args.eval_model}_v2.json"
@@ -184,6 +207,13 @@ if __name__ == '__main__':
             for item in dataset:
                 decomps = item["decomposition"]
                 item["subanswer"] = []
+                question = item["question"]
+                question = format_question(question)
+                if args.use_context:
+                    context_list = question2context[question]
+                    context_pre = "Context: "
+                    for context in context_list:
+                        context_pre += context + " "
                 for decomp in decomps:
                     subanswers = []
                     decomp_list = decomp.split("<s>")
@@ -193,6 +223,9 @@ if __name__ == '__main__':
                             prompt = f"{pre_subq} Please answer the abbreviated question as short as possible: {subq}"
                         else:
                             prompt = subquery_template.format(question=f"{pre_subq}{subq}")
+                        if args.use_context:
+                            prompt = context_pre + prompt
+                        # print(prompt)
                         subanswer = model.generate([prompt])
                         pre_subq += f"#{cnt}: {subanswer[0]} "
                         subanswers.append(subanswer[0])
@@ -209,7 +242,10 @@ if __name__ == '__main__':
         # reformat the dataset
         dataset = reformat_dataset(dataset, args)
         model_name = args.recomp_model.split("/")[-1]
-        model_dir = f"{args.root_path}/save_models/recomp/{args.decomp_data}/{model_name}"
+        if data_type == "qa":
+            model_dir = f"{args.root_path}/save_models/recomp/{args.recomp_data}/{model_name}_{str(args.pretrain_recomp)}_{str(args.use_context)}"
+        else:
+            model_dir = f"{args.root_path}/save_models/recomp/{args.recomp_data}/{model_name}"
         if data_type == "qa":
             tokenizer, model = get_model_tokenizer_qa(model_dir)
             classification = False
@@ -276,7 +312,7 @@ if __name__ == '__main__':
                 else:
                     acc, auc = get_eval_metric_cls(labels, predictions)
                     pbar.set_postfix(acc=acc, auc=auc)
-            if args.decomp_data == "hotpotqa":
+            if data_type == "qa":
                 print(f"RougnL: {rougnL}")
                 print(f"F1: {f1}")
                 print(f"Exact match: {exact_match}")

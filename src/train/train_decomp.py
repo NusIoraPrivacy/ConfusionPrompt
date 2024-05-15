@@ -15,11 +15,11 @@ import os
 
 if __name__ == '__main__':
     args = parse_args()
-    tokenizer, model = get_model_tokenizer(args.base_model, args)
+    tokenizer, model = get_model_tokenizer(args.base_model, args, device_map=args.device_map)
     # load train data
     decomp_inputs = load_decomp_dataset(args, split="train")
     # print(len(decomp_inputs))
-    # print(decomp_inputs[:5])
+    # decomp_inputs = decomp_inputs[:20]
     dataset = DecompDataset(decomp_inputs, tokenizer, args.token_len)
     dataloader = DataLoader(
             dataset, 
@@ -52,7 +52,6 @@ if __name__ == '__main__':
             for step, batch in enumerate(dataloader):
                 for key in batch.keys():
                     batch[key] = batch[key].to(model.device)
-                
                 output = model(**batch) 
                 loss = output.loss
                 loss_list.append(loss.item())

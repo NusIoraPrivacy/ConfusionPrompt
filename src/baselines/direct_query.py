@@ -47,7 +47,8 @@ if __name__ == "__main__":
     output_dir = f"{args.root_path}/results/{args.eval_data}/baseline"
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-    output_path = f"{output_dir}/predictions_{args.eval_model}_{suffix}.json"
+    model_name = args.eval_model.split("/")[-1]
+    output_path = f"{output_dir}/predictions_{model_name}_{suffix}.json"
 
     data_type = dataset_type[args.eval_data]
     if data_type == "cls":
@@ -59,38 +60,60 @@ if __name__ == "__main__":
         elif data_type == "qa":
             oracle = pipeline(task="text-generation", 
                 model=args.eval_model, device_map="auto")
+
         labels = []
         predictions = []
         output = []
-        with tqdm(total=len(val_dataloader), unit='batch') as pbar:
+        max_step = 500
+        with tqdm(total=min(len(val_dataloader), max_step), unit='batch') as pbar:
             for step, batch in enumerate(val_dataloader):
-                if data_type == "cls":
-                    results = oracle(
-                        sequences = batch["sequences"],
-                        candidate_labels = candidate_labels,
+                # if data_type == "cls":
+                #     results = oracle(
+                #         sequences = batch["sequences"],
+                #         candidate_labels = candidate_labels,
+                #     )
+                # elif data_type == "qa":
+                #     results = oracle(
+                #         text_inputs = batch["sequences"]
+                #     )
+                results = oracle(
+                        text_inputs = batch["sequences"], max_new_tokens=args.max_new_tokens
                     )
-                elif data_type == "qa":
-                    results = oracle(
-                        text_inputs = batch["sequences"]
-                    )
+                this_labels = []
                 this_preds = []
                 for i, rslt in enumerate(results):
+                    # if data_type == "cls":
+                    #     label, score = rslt['labels'], rslt['scores']
+                    #     max_idx = np.argmax(score)
+                    #     max_label = label[max_idx]
+                    #     pred = candidate_labels.index(max_label)
+                    # elif data_type == "qa":
+                    #     question = batch["sequences"][i]
+                    #     # print(question)
+                    #     pred = rslt[0]['generated_text']
+                    #     pred = pred.replace(question, "")
+                    #     # print(pred)
+                    #     if args.step_by_step:
+                    #         pred = extract_prediction(pred)
+                    question = batch["sequences"][i]
+                    # print(question)
+                    pred = rslt[0]['generated_text']
+                    pred = pred.replace(question, "")
+                    # print(pred)
+                    if args.step_by_step:
+                        pred = extract_prediction(pred)
                     if data_type == "cls":
-                        label, score = rslt['labels'], rslt['scores']
-                        max_idx = np.argmax(score)
-                        max_label = label[max_idx]
-                        pred = candidate_labels.index(max_label)
-                    elif data_type == "qa":
-                        question = batch["sequences"][i]
-                        # print(question)
-                        pred = rslt[0]['generated_text']
-                        pred = pred.replace(question, "")
-                        # print(pred)
-                        if args.step_by_step:
-                            pred = extract_prediction(pred)
-                    this_preds.append(pred)
+                        pred = standard_ans(pred)
                     predictions.append(pred)
-                labels.extend(batch['labels'])
+                    this_preds.append(pred)
+
+                    for label in batch['labels']:
+                        if data_type == "cls":
+                            label = standard_ans(label)
+                        labels.append(label)
+                        this_labels.append(label)
+                    # print(pred)
+                    # print(label)
                 if data_type == "cls":
                     acc = accuracy_score(labels, predictions)
                     auc = roc_auc_score(labels, predictions)
@@ -101,13 +124,15 @@ if __name__ == "__main__":
                     exact_match = exact_match_score(predictions, labels)
                     pbar.set_postfix(rougnL=rougnL, f1=f1, exact_match=exact_match)
                 questions = batch["questions"]
-                for question, label, pred in zip(questions, labels, this_preds):
+                for question, label, pred in zip(questions, this_labels, this_preds):
                     item = {"question": question,
                             "label": label,
                             "prediction": pred}
                     output.append(item)
                 write_list(output_path, output)
                 pbar.update(1)
+                if step >= max_step:
+                    break
         
         if data_type == "cls":
             print(f"Accuracy: {acc}")
@@ -120,8 +145,8 @@ if __name__ == "__main__":
     else:
         model = get_eval_model(args)
         output = []
-        
-        with tqdm(total=len(val_dataloader), unit='batch') as pbar:
+        max_step = 500
+        with tqdm(total=min(len(val_dataloader), max_step), unit='batch') as pbar:
             for step, batch in enumerate(val_dataloader):
                 prompts = batch["sequences"]
                 labels = batch["labels"]
@@ -141,6 +166,8 @@ if __name__ == "__main__":
                             "prediction": pred}
                     output.append(item)
                 write_list(output_path, output)
+                if step >= max_step:
+                    break
         
         data_path = f"{args.root_path}/results/{args.eval_data}/baseline/predictions_{args.eval_model}_{suffix}.json"
         results = read_data(data_path)

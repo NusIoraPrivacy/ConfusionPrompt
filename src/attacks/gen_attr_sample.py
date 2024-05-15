@@ -101,8 +101,8 @@ def parse_args():
     parser.add_argument("--attack_type", type=str, default="attribute", choices=["reconstruct", "attribute"])
     parser.add_argument("--data_name", type=str, default="tweet", choices=["ClariQ", "tweet"])
     parser.add_argument("--extract_attr", type=str2bool, default=False)
-    parser.add_argument("--gen_replace", type=str2bool, default=True)
-    parser.add_argument("--train_generator", type=str2bool, default=False)
+    parser.add_argument("--gen_replace", type=str2bool, default=False)
+    parser.add_argument("--train_generator", type=str2bool, default=True)
     parser.add_argument("--debug", type=str2bool, default=False)
     args = parser.parse_args()
 
@@ -305,9 +305,12 @@ if __name__ == "__main__":
                 for rpl in replacements:
                     item = {"text": text, "attributes": attributes, "replacement": rpl}
                     inputs.append(item)
+            n_replaces=20
             if args.debug:
                 inputs = inputs[:100]
                 args.epochs = 2
+                n_replaces = 5
+
             tokenizer, model = get_model_tokenizer_qa(args.generator)
             train_dataset = TweetRplDataset(inputs, tokenizer)
             train_loader = DataLoader(train_dataset, shuffle=True, 
@@ -344,14 +347,31 @@ if __name__ == "__main__":
                         optimizer.zero_grad()
                         pbar.update(1)
                         pbar.set_postfix(loss=loss.item())
-                
-                # generate sample
+
+                # save final epoch of model
+                if epoch == args.epochs - 1:
+                    model_name = args.generator.split("/")[-1]
+                    model_dir = f"{_ROOT_PATH}/save_models/replace/tweet/{model_name}"
+                    if not os.path.exists(model_dir):
+                        os.makedirs(model_dir, exist_ok=True)
+                    model.save_pretrained(model_dir)
+
                 outputs = []
+                text2idx = {}
+                idx = 0
+                for sample in test_dataset:
+                    text = sample["text"]
+                    sample["replacement"] = []
+                    outputs.append(sample)
+                    text2idx[text] = idx
+                    idx += 1
+                # generate sample
                 model_name = args.generator.split("/")[-1]
                 output_dir = f"{_ROOT_PATH}/results/tweet/attack/{model_name}"
                 if not os.path.exists(output_dir):
                     os.makedirs(output_dir, exist_ok=True)
                 out_path = f"{output_dir}/tweet_all_replacements_epoch_{epoch}.json"
+                
                 for i in tqdm(range(0, len(test_dataset), args.test_batch_size)):
                     samples = test_dataset[i:(i+args.test_batch_size)]
                     prompts = []
@@ -361,12 +381,21 @@ if __name__ == "__main__":
                         prompt = prompt + f" {tokenizer.bos_token} " + f" {tokenizer.bos_token} ".join(attr_list)
                         prompts.append(prompt)
                     input_toks = tokenizer(prompts, max_length=512, padding=True, return_tensors="pt")
-                    for key in input_toks:
-                        input_toks[key] = input_toks[key].to(model.device)
-                    output_ids = model.generate(**input_toks, max_new_tokens=args.max_new_tokens)
-                    sents = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
-                    for sample, sent in zip(samples, sents):
-                        sample["replacement"] = sent
-                        outputs.append(sample)
-                with open(out_path, "w") as f:
-                    json.dump(outputs, f, indent=4)
+                    for _ in range(n_replaces):
+                        for key in input_toks:
+                            input_toks[key] = input_toks[key].to(model.device)
+                        try:
+                            output_ids = model.generate(**input_toks, do_sample=True, 
+                                        temperature=1, max_new_tokens=args.max_new_tokens)
+                        except Exception as e:
+                            continue
+                        sents = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+                        for sample, sent in zip(samples, sents):
+                            text = sample["text"]
+                            idx = text2idx[text]
+                            outputs[idx]["replacement"].append(sent)
+                    if epoch < args.epochs - 1 and i >= 10 * args.test_batch_size:
+                        break
+                    if i  % (args.test_batch_size * 5) == 0:
+                        with open(out_path, "w") as f:
+                            json.dump(outputs, f, indent=4)

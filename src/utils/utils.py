@@ -30,7 +30,7 @@ from openai import (
     APIError,
 )
 
-def get_model_tokenizer(model_name, args=None):
+def get_model_tokenizer(model_name, args=None, device_map="auto"):
     if model_name in ("THUDM/chatglm2-6b-int4", "THUDM/chatglm2-6b"):
         base_model = AutoModel.from_pretrained(model_name, trust_remote_code=True) # FP16 by default
         try:
@@ -43,23 +43,23 @@ def get_model_tokenizer(model_name, args=None):
         except:
             tokenizer = GPT2Tokenizer.from_pretrained(args.base_model)
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = GPT2Model.from_pretrained(model_name, device_map="auto")
+        base_model = GPT2Model.from_pretrained(model_name, device_map=device_map)
     elif 'opt' in model_name:
         try:
             tokenizer = AutoTokenizer.from_pretrained(model_name)
         except:
             tokenizer = AutoTokenizer.from_pretrained(args.base_model)
-        base_model = OPTForSequenceClassification.from_pretrained(model_name, device_map="auto")
+        base_model = OPTForSequenceClassification.from_pretrained(model_name, device_map=device_map)
     elif 'llama' in model_name:
         try:
             tokenizer = AutoTokenizer.from_pretrained(model_name)
         except:
             tokenizer = AutoTokenizer.from_pretrained(args.base_model)
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")
+        base_model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device_map)
     elif "bart_pretrained" in model_name:
         tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large")
-        base_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large", return_dict=True, device_map="auto")
+        base_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large", return_dict=True, device_map=device_map)
         state_dict = torch.load(f"{args.root_path}/save_models/decomp/bart_pretrained/weights.th")
         state_dict = OrderedDict([(k.replace('_seq2seq.',''), v) for k, v in state_dict.items()])
         base_model.load_state_dict(state_dict, strict=False)
@@ -68,7 +68,7 @@ def get_model_tokenizer(model_name, args=None):
             tokenizer = AutoTokenizer.from_pretrained(model_name,)
         except:
             tokenizer = AutoTokenizer.from_pretrained(args.base_model)
-        base_model =  AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map="auto")
+        base_model =  AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map=device_map)
     elif "bert" in model_name:
         try:
             tokenizer = AutoTokenizer.from_pretrained(model_name,)
@@ -88,22 +88,22 @@ def get_model_tokenizer(model_name, args=None):
             base_model = get_peft_model(base_model, peft_config)
     return tokenizer, base_model
 
-def get_model_tokenizer_cls(model_name, num_labels, args=None):
+def get_model_tokenizer_cls(model_name, num_labels, args=None, device_map="auto"):
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
     except:
         tokenizer = AutoTokenizer.from_pretrained(args.base_model)
     if 'gpt2' in model_name:
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = GPT2ForSequenceClassification.from_pretrained(model_name, device_map="auto")
+        base_model = GPT2ForSequenceClassification.from_pretrained(model_name, device_map=device_map)
     elif 'opt' in model_name:
-        base_model = OPTForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, device_map="auto")
+        base_model = OPTForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, device_map=device_map)
     elif 'llama' in model_name:
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = LlamaForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, device_map="auto")
+        base_model = LlamaForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, device_map=device_map)
     elif "bart" in model_name:
         base_model = BartForSequenceClassification.from_pretrained(model_name, 
-                                                                num_labels=num_labels, device_map="auto")
+                                                                num_labels=num_labels, device_map=device_map)
     elif "roberta" in model_name:
         base_model = RobertaForSequenceClassification.from_pretrained(model_name, 
                                                         num_labels=num_labels)
@@ -121,20 +121,20 @@ def get_model_tokenizer_cls(model_name, num_labels, args=None):
         tokenizer.eos_token_id = tokenizer.pad_token_id
     return tokenizer, base_model
 
-def get_model_tokenizer_qa(model_name, args=None):
+def get_model_tokenizer_qa(model_name, args=None, device_map="auto"):
     try:
         tokenizer = AutoTokenizer.from_pretrained(model_name)
     except:
         tokenizer = AutoTokenizer.from_pretrained(args.base_model)
     if 't5' in model_name:
-        base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map="auto")
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map=device_map)
     elif 'llama' in model_name:
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = AutoModelForCausalLM.from_pretrained(model_name, num_labels=num_labels, device_map="auto")
+        base_model = AutoModelForCausalLM.from_pretrained(model_name, num_labels=num_labels, device_map=device_map)
     elif "bart" in model_name:
-        base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map="auto")
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map=device_map)
     elif "roberta" in model_name:
-        base_model = RobertaForCausalLM.from_pretrained(model_name, device_map="auto", is_decoder=True)
+        base_model = RobertaForCausalLM.from_pretrained(model_name, device_map=device_map, is_decoder=True)
     if tokenizer.eos_token_id is None:
         tokenizer.eos_token = tokenizer.pad_token
         tokenizer.eos_token_id = tokenizer.pad_token_id

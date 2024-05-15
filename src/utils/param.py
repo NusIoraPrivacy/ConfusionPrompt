@@ -171,6 +171,8 @@ def parse_args():
     parser.add_argument("--flu_thd", type=int, default=3,
         help = "threshold for fluency")
     
+    parser.add_argument("--device_map", type=str, default="auto")
+    
     parser.add_argument("--max_step", type=int, default=50,
         help = "maximum steps for generator evaluation")
     
@@ -182,6 +184,14 @@ def parse_args():
     
     parser.add_argument("--eval_utility", type=str2bool, default=True,
         help="whether to evaluate the utility")
+    
+    parser.add_argument("--use_context", type=str2bool, default=False,
+        help="whether to use context in the qa dataset")
+    
+    parser.add_argument("--skip_eval_quality", type=str2bool, default=True,
+        help="whether to skip evaluating the quality of decompositon")
+    
+    parser.add_argument("--gen_answer", type=str2bool, default=True)
 
     args = parser.parse_args(namespace=args)
 

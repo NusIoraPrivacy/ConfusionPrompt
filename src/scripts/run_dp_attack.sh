@@ -23,5 +23,26 @@
 # echo "attribute inference attack without sampling"
 # python -m attacks.dp_attack --sample_train False
 
-echo "attribute inference attack with sampling"
-python -m attacks.dp_attack --sample_train True --epochs 10
+dp_types=("text2text")
+eps_list=(1 10)
+
+for dp in ${dp_types[@]}
+do
+    for eps in ${eps_list[@]}
+    do
+    echo "attribute inference attack: dp type $dp epsilon $eps"
+    python -m attacks.dp_attack --sample_train False --epochs 2 --epsilon=$eps --dp_type=$dp --attack_type attribute
+    done
+done
+
+dp_types=("paraphrase")
+eps_list=(0.1 1 10)
+
+for dp in ${dp_types[@]}
+do
+    for eps in ${eps_list[@]}
+    do
+    echo "attribute inference attack: dp type $dp epsilon $eps"
+    python -m attacks.dp_attack --sample_train False --epochs 2 --epsilon=$eps --dp_type=$dp --attack_type attribute
+    done
+done

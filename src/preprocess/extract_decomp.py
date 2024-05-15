@@ -6,6 +6,7 @@ from dataset.get_data import *
 
 from tqdm import tqdm
 import numpy as np
+import random
 
 
 def create_prompt_decomp(args, question, answer, attribute=None):
@@ -35,7 +36,7 @@ def get_avg_utility(dataset):
 if __name__ == '__main__':
     args = parse_args()
     model = get_eval_model(args)
-    dataset = load_recomp_dataset(args, split=args.mode)[:2000]
+    dataset = load_recomp_dataset(args, split=args.mode)
 
     if args.extract_attr:
         output_path = f"{args.root_path}/data/{args.recomp_data}/{args.mode}_attrs.json"
@@ -121,6 +122,69 @@ if __name__ == '__main__':
             if cnt % 5 == 0:
                 write_list(output_path, output)
     
+    if args.gen_answer:
+        tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large")
+        question2context = load_context(args.recomp_data, split="train", args=args)
+        question2label = load_label(args.recomp_data, tokenizer, split="train", args=args)
+        data_path = f"{args.root_path}/results/{args.recomp_data}/decomp/bart-large/decompose_dpo_train_epoch_0.json"
+        dataset = read_data(data_path)
+        random.shuffle(dataset)
+        dataset = dataset[:2000]
+        output_path = f"{args.root_path}/data/{args.recomp_data}/{args.mode}_decomp_{args.eval_model}_ans.json"
+        cnt = 0
+        # output = read_data(output_path)
+        # pre_questions = [item["question"] for item in output]
+        output = []
+        for sample in tqdm(dataset):
+            # print(sample["question"])
+            # print(sample["decomposition"])
+            question, decomp = sample["question"], sample["decomposition"]
+            question = standard_question(question)
+            # question = question.lower()
+            # question = question.strip()
+            # try:
+            answer = question2label[question]
+            context_list = question2context[question]
+            # except Exception as e:
+            #     print(question)
+            #     continue
+            decomp_list = decomp.split("<s>")
+            context_pre = "Context: "
+            for context in context_list:
+                context_pre += context + " "
+            # if question in pre_questions:
+            #     continue
+            subanswers = []
+            pre_subq = ""
+            for cnt, subq in enumerate(decomp_list, start=1):
+                if args.abbrevation:
+                    prompt = f"{pre_subq} Please answer the abbreviated question as short as possible: {subq}"
+                else:
+                    prompt = subquery_template.format(question=f"{pre_subq}{subq}")
+                prompt = context_pre + prompt
+                # print(prompt)
+                subanswer = model.generate([prompt])
+                pre_subq += f"#{cnt}: {subanswer[0]} "
+                subanswers.append(subanswer[0])
+            if len(subanswers) > 0:
+                prediction = subanswers[-1]
+            else:
+                prediction = ""
+            sample["subanswers"] = subanswers
+            sample["prediction"] = prediction
+            # compute the score for the prediction
+            sample["rougeL"] = rouge([prediction], [answer])
+            sample["f1"] = f1_score([prediction], [answer])
+            sample["exact_match"] = exact_match_score([prediction], [answer])
+            
+            output.append(sample)
+            cnt += 1
+            # if cnt % 5 == 0:
+            #     write_list(output_path, output)
+            write_list(output_path, output)
+            # if cnt >= 2000:
+            #     break
+
     if args.redone_decomp:
         data_path = f"{args.root_path}/data/{args.recomp_data}/{args.mode}_attrs_decomp_{args.eval_model}_ans.json"
         output_path = f"{args.root_path}/data/{args.recomp_data}/{args.mode}_attrs_decomp_{args.eval_model}_ans_final.json"

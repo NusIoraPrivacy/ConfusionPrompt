@@ -1,6 +1,6 @@
 {
     "base_model": "facebook/bart-large",
-    "recomp_data": "hotpotqa",
+    "recomp_data": "musique",
     "epochs": 20,
     "train_batch_size": 6,
     "test_batch_size":6,
@@ -8,6 +8,6 @@
     "lr": 1e-5,
     "token_len": 512,
     "pretrain_recomp": true,
-    "continue_pt": 1,
-    "use_context": false
+    "continue_pt": 2,
+    "use_context": true
 }

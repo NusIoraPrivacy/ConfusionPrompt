@@ -51,7 +51,7 @@ def test_decomp(model, test_loader, epoch, args):
             for prompt, y_pred, label in zip(prompts, y_preds, this_labels):
                 outputs.append({"prompt": prompt, "prediction": y_pred, "label": label})
     model_name = args.base_model.split("/")[-1]
-    output_path = f"{args.root_path}/results/{args.recomp_data}/recomp/{model_name}_epoch_{epoch}.json"
+    output_path = f"{args.root_path}/results/{args.recomp_data}/recomp/{model_name}_{str(args.pretrain_recomp)}_{str(args.use_context)}_epoch_{epoch}.json"
     output_dir = os.path.dirname(output_path)
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
@@ -65,8 +65,8 @@ def test_decomp(model, test_loader, epoch, args):
 def train_recomp(epochs, train_loader, test_loader, model, optimizer, lr_scheduler, args, pretrain=False):
     best_f1 = 0
     model_name = args.base_model.split("/")[-1]
-    if not pretrain:
-        f1 = test_decomp(model, test_loader, 0, args)
+    # if not pretrain:
+    #     f1 = test_decomp(model, test_loader, 0, args)
     # f1 = test_decomp(model, test_loader, 0, args)
     for epoch in range(epochs):
         model.train()
@@ -98,7 +98,7 @@ def train_recomp(epochs, train_loader, test_loader, model, optimizer, lr_schedul
         if f1 > best_f1:
             best_f1 = f1
             if not pretrain:
-                model_dir = f"{args.root_path}/save_models/recomp/{args.recomp_data}/{model_name}"
+                model_dir = f"{args.root_path}/save_models/recomp/{args.recomp_data}/{model_name}_{str(args.pretrain_recomp)}_{str(args.use_context)}"
                 model.save_pretrained(model_dir)
                 tokenizer.save_pretrained(model_dir)
 
@@ -172,11 +172,17 @@ if __name__ == "__main__":
             model = train_recomp(epochs, train_loader, test_loader, model, optimizer, lr_scheduler, args, pretrain=True)
 
     # read train and test dataset
-    train_dataset = load_recomp_dataset(args, split="train")
-    # test_dataset = load_recomp_dataset(args, split="test")
-    n_trains = int(len(train_dataset) * 0.8)
-    test_dataset = train_dataset[n_trains:]
-    train_dataset = train_dataset[:n_trains]
+    train_dataset = load_recomp_dataset(args, split="train", context=args.use_context)
+    # train_dataset = train_dataset[:10]
+    # print(len(train_dataset))
+    # print(train_dataset[:5])
+    test_dataset = load_recomp_dataset(args, split="test", context=args.use_context)
+    # test_dataset = test_dataset[:10]
+    # print(len(test_dataset))
+    # print(test_dataset[:5])
+    # n_trains = int(len(train_dataset) * 0.8)
+    # test_dataset = train_dataset[n_trains:]
+    # train_dataset = train_dataset[:n_trains]
     train_dataset = RecompDataset(train_dataset, tokenizer, classification=False, causal=causal_model)
     test_dataset = RecompDataset(test_dataset, tokenizer, classification=False, causal=causal_model, test=True)
     # obtain dataloader

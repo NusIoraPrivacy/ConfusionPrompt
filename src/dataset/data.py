@@ -6,7 +6,7 @@ import random
 from utils.globals import (IGNORE_INDEX, chat_templates, dataset_type,
                     direct_query_template, step_by_step_template,
                     direct_query_template_cls, step_by_step_template_cls,
-                    cls_label_dict)
+                    cls_label_dict, context_template)
 
 class DecompDataset(Dataset):
     def __init__(self, decomp_inputs, tokenizer, max_words=100, pad=True):
@@ -285,6 +285,7 @@ class RecompDataset(Dataset):
             decompositions = item["decomposition"][:-1]
             final_question = item["decomposition"][-1]
             subanswers = item["sub-answers"][:len(decompositions)]
+            context = item["context"]
             label = item["label"]
             
             # create question ids
@@ -296,7 +297,10 @@ class RecompDataset(Dataset):
             query_id[~query_mask] = self.tokenizer.pad_token_id
 
             # create prompt
-            prompt = ""
+            if isinstance(context, list):
+                prompt = f" {self.tokenizer.bos_token} ".join(context)
+            else:
+                prompt = ""
             prompt = prompt + query
             for cnt, (decomp, subans) in enumerate(zip(decompositions, subanswers), start=1):
                 prompt += f"{self.tokenizer.bos_token} #{cnt}: {decomp} {subans}"
@@ -474,6 +478,7 @@ class BslData(Dataset):
         for i in index:
             item = self.inputs[i]
             question = item["question"]
+            context_list = item["context"]
             questions.append(question)
             if self.args.step_by_step:
                 template = step_by_step_template if self.data_type=="qa" else step_by_step_template_cls
@@ -481,6 +486,9 @@ class BslData(Dataset):
             else:
                 template = direct_query_template if self.data_type=="qa" else direct_query_template_cls
                 prompt = template.format(question=question)
+            if isinstance(context_list, list):
+                context = " ".join(context_list)
+                prompt = context_template.format(context=context) + prompt
             prompt = chat_templates[self.args.eval_model].format(prompt=prompt)
             prompts.append(prompt)
             label = item["label"]
@@ -911,6 +919,63 @@ class TweetRplDataset(Dataset):
             label_id[~label_mask] = IGNORE_INDEX
 
             labels.append(label_id)
+            examples.append(input_id)
+            example_masks.append(att_mask)
+
+        return {
+            "input_ids": examples,
+            "labels": labels,
+            "attention_mask": example_masks,
+        }
+
+class TweetInferDataset(Dataset):
+    def __init__(self, inputs, tokenizer, max_words=512, pad=True, args=None):
+        # inputs: {"question": question, "attribute": attr, "replace sentences": rpt_sents, "replace attributes": rpl_attrs}
+        self.tokenizer = tokenizer
+        self.max_words = max_words
+        self.pad = pad
+        self.items = inputs
+        self.args = args
+
+    def __len__(self):
+        return len(self.items)
+    
+    def pad_token(self, input_id, max_words):
+        if self.pad:
+            padding = max_words - input_id.shape[0]
+            if padding > 0:
+                input_id = torch.cat((input_id, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                input_id = input_id[: max_words]
+        if input_id[-1].item() != -1:
+            input_id[-1] = self.tokenizer.eos_token_id
+        return input_id
+    
+    def __getitem__(self, index):
+        examples = []
+        labels = []
+        example_masks = []
+        for i in index:
+            item = self.items[i]
+            text_list, label = item["text"], item["label"]
+            # create input ids
+            try:
+                prompt = f" {self.tokenizer.bos_token} ".join(text_list)
+            except Exception as e:
+                continue
+            input_id = torch.tensor(
+                self.tokenizer.encode(prompt), dtype=torch.int64
+            )
+            if self.pad:
+                input_id = self.pad_token(input_id, self.max_words)
+            att_mask = input_id.ge(0)
+            input_id[~att_mask] = 0
+            att_mask = att_mask.float()
+
+            # create label
+            label = cls_label_dict[self.args.data_name][label]
+
+            labels.append(label)
             examples.append(input_id)
             example_masks.append(att_mask)
 

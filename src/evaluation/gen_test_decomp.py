@@ -6,12 +6,17 @@ from dataset.get_data import *
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 from transformers import (default_data_collator, AutoModelForCausalLM, 
-                        GenerationConfig, AutoModelForSeq2SeqLM)
+                        GenerationConfig, AutoModelForSeq2SeqLM, AutoTokenizer)
 from peft import PeftModel
 import os
+import random
 
 def test_decomp(args, model, tokenizer, epoch, mode="test"):
     decomp_inputs = load_decomp_dataset(args, split=mode)
+    random.shuffle(decomp_inputs)
+    decomp_inputs = decomp_inputs[:10000]
+    print(len(decomp_inputs))
+    # decomp_inputs = decomp_inputs[:20]
     test_dataset = DecompDataset(decomp_inputs, tokenizer, args.token_len)
     test_dataloader = DataLoader(
             test_dataset, 
@@ -60,17 +65,21 @@ def test_decomp(args, model, tokenizer, epoch, mode="test"):
 
 if __name__ == '__main__':
     args = parse_args()
-    tokenizer, model = get_model_tokenizer(args.base_model, args)
-    model_name = args.base_model.split("/")[-1]
-    if args.test_mode == "dpo":
-        model_dir = f"{args.root_path}/save_models/decomp/{args.test_mode}/{args.decomp_data}/{model_name}/final"
-    else:
-        if not "pretrained" in args.base_model:
-            model_dir = f"{args.root_path}/save_models/decomp/{args.test_mode}/{args.decomp_data}/{model_name}/epoch_{args.test_epoch}"
-    if not "pretrained" in args.base_model or args.test_mode == "dpo":
-        if args.peft:
-            model = PeftModel.from_pretrained(model, model_dir)
-        else:
-            model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, device_map="auto")
+    args.decomp_data = "hotpotqa"
+    # tokenizer, model = get_model_tokenizer(args.base_model, args)
+    # model_name = args.base_model.split("/")[-1]
+    # if args.test_mode == "dpo":
+    #     model_dir = f"{args.root_path}/save_models/decomp/{args.test_mode}/{args.decomp_data}/{model_name}/final"
+    # else:
+    #     if not "pretrained" in args.base_model:
+    #         model_dir = f"{args.root_path}/save_models/decomp/{args.test_mode}/{args.decomp_data}/{model_name}/epoch_{args.test_epoch}"
+    # if not "pretrained" in args.base_model or args.test_mode == "dpo":
+    #     if args.peft:
+    #         model = PeftModel.from_pretrained(model, model_dir)
+    #     else:
+    #         model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, device_map="auto")
+    model_dir = f"/mnt/sda/LLM/ConfusionPrompt/save_models/decomp/sp/musique/bart_pretrained/epoch_10"
+    model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, device_map="cuda:1")
+    tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large")
     model.eval()
-    test_decomp(args, model, tokenizer, 0)
+    test_decomp(args, model, tokenizer, 0, mode="train")

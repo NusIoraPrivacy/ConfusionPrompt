@@ -37,8 +37,8 @@ def parse_args():
         help = "max new token for text generation")
     parser.add_argument("--lr", type=float, default=1e-5, help = "learning rate")
     parser.add_argument("--epochs", type=int, default=5, help = "training epochs")
-    parser.add_argument("--train_batch_size", type=int, default=10)
-    parser.add_argument("--test_batch_size", type=int, default=10)
+    parser.add_argument("--train_batch_size", type=int, default=5)
+    parser.add_argument("--test_batch_size", type=int, default=5)
     parser.add_argument("--data_name", type=str, default="tweet", choices=["strategyQA", "tweet"])
     parser.add_argument("--delta", type=float, default=1e-4, help="privacy budget")
     parser.add_argument("--epsilon", type=float, default="inf", help="privacy budget")
@@ -101,7 +101,7 @@ if __name__ == "__main__":
         if args.debug:
             temp = {}
             for i, key in enumerate(dataset):
-                if i >= 20:
+                if i >= 40:
                     break
                 temp[key] = dataset[key]
             dataset = temp
@@ -179,7 +179,7 @@ if __name__ == "__main__":
         if args.sample_train:
             dataset = dataset[:10000]
         if args.debug:
-            dataset = dataset[:20]
+            dataset = dataset[:40]
             args.epochs = 5
         if args.attack_type == "reconstruct":
             tokenizer, model = get_model_tokenizer_qa(args.model)

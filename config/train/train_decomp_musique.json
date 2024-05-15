@@ -1,0 +1,14 @@
+{
+    "base_model": "bart_pretrained",
+    "decomp_data": "musique",
+    "epochs": 10,
+    "save_epo": 5,
+    "train_batch_size": 6,
+    "val": true,
+    "lr": 1e-5,
+    "use_peft": false,
+    "n_resp": 5,
+    "test_batch_size": 10,
+    "test_mode": "sp",
+    "device_map": "cuda:1"
+}
