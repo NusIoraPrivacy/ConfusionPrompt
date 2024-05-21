@@ -193,6 +193,8 @@ def parse_args():
     
     parser.add_argument("--gen_answer", type=str2bool, default=True)
 
+    parser.add_argument("--debug", type=str2bool, default=False)
+
     args = parser.parse_args(namespace=args)
 
     return args

@@ -39,14 +39,10 @@ def parse_args():
     parser.add_argument("--train_batch_size", type=int, default=3)
     parser.add_argument("--test_batch_size", type=int, default=3)
     parser.add_argument("--data_name", type=str, default="tweet", choices=["tweet"])
-    parser.add_argument("--mu", type=float, default=0.2, help="privacy budget")
+    parser.add_argument("--mu", type=float, default=0.05, help="privacy budget")
     parser.add_argument("--sim_thd", type=float, default=0.7, help = "threshold for similarity")
     parser.add_argument("--flu_thd", type=int, default=3, help = "threshold for fluency")
-    parser.add_argument("--gen_sample", type=str2bool, default=True)
-    parser.add_argument("--gen_replacement", type=str2bool, default=False)
-    parser.add_argument("--attack_flag", type=str2bool, default=True)
     parser.add_argument("--debug", type=str2bool, default=False)
-    parser.add_argument("--sample_train", type=str2bool, default=True)
     args = parser.parse_args()
 
     return args
@@ -55,14 +51,20 @@ if __name__ == "__main__":
     args = parse_args()
     model_name = args.generator.split("/")[-1]
     # data_path = f"{_ROOT_PATH}/results/tweet/attack/{model_name}/tweet_all_replacements_epoch_{args.test_epoch}.json"
-    data_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement.json"
+    # data_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement_new.json"
+    data_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement_new_sim.json"
     with open(data_path) as f:
         dataset = json.load(f)
+    # print(len(dataset))
+    dataset = dataset[:-1]
+    if args.debug:
+        dataset = dataset[:5]
     
     inputs = []
     n_replaces = int(1/args.mu)
     for sample in dataset:
         text, label, replacements = sample["text"], sample["label"], sample["replacement"]
+        random.shuffle(replacements)
         replacements = replacements[:n_replaces]
         all_sents = [text] + replacements
         random.shuffle(all_sents)
@@ -72,7 +74,7 @@ if __name__ == "__main__":
     n_labels = len(cls_label_dict[args.data_name])
     f1_avg = 'binary' if n_labels == 2 else "micro"
     tokenizer, model = get_model_tokenizer_cls(args.model, n_labels)
-    model = model.to("cuda:1")
+    # model = model.to("cuda:1")
 
     n_trains = int(0.8 * len(inputs))
     train_inputs = inputs[:n_trains]

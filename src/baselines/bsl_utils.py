@@ -14,9 +14,14 @@ def standard_ans(ans):
     pred = 1 if "yes" in ans else 0
     return pred
 
-def create_query_prompt(questions):
+def create_query_prompt(questions, contexts, args):
+    data_type = dataset_type[args.eval_data]
     prompts = []
-    for question in questions:
-        prompt = cls_bool_template.format(question=question)
+    for question, context in zip(questions, contexts):
+        template = direct_query_template if data_type=="qa" else direct_query_template_cls
+        prompt = template.format(question=question)
+        if args.use_context:
+            context = " ".join(context)
+            prompt = context_template.format(context=context) + prompt
         prompts.append(prompt)
     return prompts

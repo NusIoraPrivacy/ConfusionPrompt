@@ -102,7 +102,9 @@ def parse_args():
     parser.add_argument("--data_name", type=str, default="tweet", choices=["ClariQ", "tweet"])
     parser.add_argument("--extract_attr", type=str2bool, default=False)
     parser.add_argument("--gen_replace", type=str2bool, default=False)
-    parser.add_argument("--train_generator", type=str2bool, default=True)
+    parser.add_argument("--train_generator", type=str2bool, default=False)
+    parser.add_argument("--add_replace", type=str2bool, default=True)
+    parser.add_argument("--similar", type=str2bool, default=True)
     parser.add_argument("--debug", type=str2bool, default=False)
     args = parser.parse_args()
 
@@ -206,6 +208,7 @@ if __name__ == "__main__":
                 ft_dataset = []
                 out_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_gptft_component.jsonl"
                 max_step =  50
+                pre_texts = []
             else:
                 args.eval_model = "ft:gpt-3.5-turbo-1106:personal:attr-extract:9NYTtOBa"
                 out_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_key_component.json"
@@ -244,6 +247,7 @@ if __name__ == "__main__":
             
         # replace the key attributes
         if args.gen_replace:
+            suffix = "_sim" if args.similar else ""
             cnt = 0 
             data_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_key_component.json"
             with open(data_path) as f:
@@ -251,23 +255,34 @@ if __name__ == "__main__":
 
             if "gpt-4" in args.eval_model:
                 ft_dataset = []
-                out_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_gptft_replace.jsonl"
+                out_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_gptft_replace{suffix}.jsonl"
                 max_step =  50
+                pre_texts = []
             else:
-                args.eval_model = "ft:gpt-3.5-turbo-1106:personal:tweet-replace:9Nd9atV7"
-                out_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement.json"
-                with open(out_path) as f:
-                    outputs = json.load(f)
-                pre_texts = [item["text"] for item in outputs]
-                max_step =  2000
+                if args.similar:
+                    args.eval_model = "ft:gpt-3.5-turbo-1106:personal:replace-sim:9PXKc5uJ"
+                else:
+                    args.eval_model = "ft:gpt-3.5-turbo-1106:personal:tweet-replace:9Nd9atV7"
+                
+                out_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement{suffix}.json"
+                if os.path.exists(out_path):
+                    with open(out_path) as f:
+                        outputs = json.load(f)
+                    pre_texts = [item["text"] for item in outputs]
+                else:
+                    pre_texts = []
+                    outputs = []
+                max_step =  4000
             n_replaces = 10
             for sample in tqdm(dataset):
                 text, attributes, label = sample["text"], sample["attributes"], sample["label"]
                 if text in pre_texts:
                     continue
-                prompt = replace_review_template.format(attributes=attributes, n_replaces=n_replaces, sentence=text)
+                template = replace_review_sim_template if args.similar else replace_review_template
+                prompt = template.format(attributes=attributes, n_replaces=n_replaces, sentence=text)
                 success = False
                 n_tries = 0
+                # print(prompt)
                 while not success:
                     replacements = get_response(client, prompt, args)
                     # print(replacements)
@@ -295,6 +310,45 @@ if __name__ == "__main__":
                 if cnt >= max_step:
                     break
         
+        # replace the key attributes
+        if args.add_replace:
+            suffix = "_sim" if args.similar else ""
+            if args.similar:
+                args.eval_model = "ft:gpt-3.5-turbo-1106:personal:replace-sim:9PXKc5uJ"
+            else:
+                args.eval_model = "ft:gpt-3.5-turbo-1106:personal:tweet-replace:9Nd9atV7"
+            cnt = 0 
+            data_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement{suffix}.json"
+            with open(data_path) as f:
+                dataset = json.load(f)
+
+            outputs = []
+            output_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement_new{suffix}.json"
+            n_replaces = 10
+            for sample in tqdm(dataset):
+                text, attributes = sample["text"], sample["attributes"]
+                prompt = replace_review_template.format(attributes=attributes, n_replaces=n_replaces, sentence=text)
+                success = False
+                n_tries = 0
+                while not success:
+                    replacements = get_response(client, prompt, args)
+                    print(replacements)
+                    try:
+                        replacements = eval(replacements)
+                        if len(replacements) == n_replaces:
+                            success=True
+                        else:
+                            n_tries += 1
+                    except Exception as e:
+                        n_tries += 1
+                    if n_tries >= 5:
+                        break
+                if success:
+                    sample["replacement"].extend(replacements)
+                    outputs.append(sample)
+                    with open(output_path, "w") as f:
+                        json.dump(outputs, f, indent=4)
+
         if args.train_generator:
             data_path = f"{_ROOT_PATH}/results/tweet/attack/tweet_replacement.json"
             with open(data_path) as f:

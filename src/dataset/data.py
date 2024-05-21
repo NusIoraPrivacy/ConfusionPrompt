@@ -98,12 +98,17 @@ class ReplaceDataset(Dataset):
             replace_item = self.replace_items[i]
             raw_query = replace_item["raw query"].strip()
             attrs = replace_item["attributes"]
-            rpl_query = replace_item["replaced query"].strip()
+            try:
+                rpl_query = replace_item["replaced query"].strip()
+            except Exception:
+                continue
             # obtain the length of prefix id
-            prompt = f"Attributes {self.tokenizer.bos_token} "
+            # prompt = f"Attributes {self.tokenizer.bos_token} "
+            prompt = ""
             for attr in attrs:
                 prompt += attr + f" {self.tokenizer.bos_token} "
-            prompt += f"Sentence {self.tokenizer.bos_token} {raw_query}"
+            # prompt += f"Sentence {self.tokenizer.bos_token} {raw_query}"
+            prompt += f"{raw_query}"
             
             # create input ids
             input_id = torch.tensor(
@@ -164,10 +169,12 @@ class EvalReplace(Dataset):
             idx = replace_item["index"]
             question = replace_item["question"]
             # obtain the length of prefix id
-            prompt = f"Attributes {self.tokenizer.bos_token} "
+            # prompt = f"Attributes {self.tokenizer.bos_token} "
+            prompt = ""
             for attr in attrs:
                 prompt += attr + f" {self.tokenizer.bos_token} "
-            prompt += f"Sentence {self.tokenizer.bos_token} {raw_query}"
+            # prompt += f"Sentence {self.tokenizer.bos_token} {raw_query}"
+            prompt += f"{raw_query}"
             
             # create input ids
             input_id = torch.tensor(
@@ -977,6 +984,64 @@ class TweetInferDataset(Dataset):
 
             labels.append(label)
             examples.append(input_id)
+            example_masks.append(att_mask)
+
+        return {
+            "input_ids": examples,
+            "labels": labels,
+            "attention_mask": example_masks,
+        }
+
+class AttrExtract(Dataset):
+    def __init__(self, inputs, tokenizer, max_words=100, pad=True):
+        self.tokenizer = tokenizer
+        self.max_words = max_words
+        self.pad = pad
+        self.inputs = inputs
+    
+    def __len__(self):
+        return len(self.inputs)
+    
+    def pad_token(self, input_id):
+        if self.pad:
+            padding = self.max_words - input_id.shape[0]
+            if padding > 0:
+                input_id = torch.cat((input_id, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                input_id = input_id[: self.max_words]
+        return input_id
+    
+    def __getitem__(self, index):
+        examples = []
+        labels = []
+        example_masks = []
+        for i in index:
+            item = self.inputs[i]
+            query = item["query"]
+            attr_list = item["attribute"]
+
+            # create input ids
+            input_id = torch.tensor(
+                self.tokenizer.encode(query), dtype=torch.int64
+            )
+            if self.pad:
+                input_id = self.pad_token(input_id)
+            att_mask = input_id.ge(0)
+            input_id[~att_mask] = 0
+            att_mask = att_mask.float()
+
+            # create target ids
+            attr_str = f" {self.tokenizer.bos_token} ".join(attr_list)
+            label_id = torch.tensor(
+                self.tokenizer.encode(attr_str), dtype=torch.int64
+            )
+            if self.pad:
+                label_id = self.pad_token(label_id)
+            label_mask = label_id.ge(0)
+            label_id[~label_mask] = IGNORE_INDEX
+
+            examples.append(input_id)
+            labels.append(label_id)
             example_masks.append(att_mask)
 
         return {

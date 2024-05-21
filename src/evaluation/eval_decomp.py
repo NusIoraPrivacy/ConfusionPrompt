@@ -157,8 +157,9 @@ if __name__ == '__main__':
         model = get_eval_model(args, model_name = "gpt-4-turbo")
         model_name = args.decomp_model.split("/")[-1]
         data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}.json"
-        dataset = read_data(data_path)[:(200*5)]
         dataset = sing2multi(["question"], ["decomposition"], dataset)
+        random.shuffle(dataset)
+        dataset = dataset[:200]
         output = []
         output_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval.json"
         # extract the qualified decompositions
@@ -190,6 +191,8 @@ if __name__ == '__main__':
         else:
             data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval.json"
             dataset = read_data(data_path)
+            random.shuffle(dataset)
+            dataset = dataset[:200]
             temp = []
             for item in dataset:
                 quallify_cands = item["qualified decomp"]
@@ -324,7 +327,7 @@ if __name__ == '__main__':
     # judge whether each decomposition contains the attribute
     if args.eval_complexity:
         if args.extract_attr:
-            model = get_eval_model(args, model_name = "gpt-4-turbo")
+            model = get_eval_model(args, model_name = "gpt-4o")
             model_name = args.decomp_model.split("/")[-1]
             data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval_{args.eval_model}_v2.json"
             output_path = f"{args.root_path}/results/{args.decomp_data}/decomp/{model_name}/decompose_{args.test_mode}_test_epoch_{args.test_epoch}_eval_{args.eval_model}_v3.json"

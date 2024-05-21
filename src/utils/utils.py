@@ -194,7 +194,8 @@ def process_response(responses, questions, tokenizer):
     output = []
     for resp, query in zip(responses, questions):
         resp = resp.replace(query, "")
-        resp = resp.replace(tokenizer.sep_token, "")
+        if tokenizer.sep_token is not None:
+            resp = resp.replace(tokenizer.sep_token, "")
         resp = resp.replace(tokenizer.pad_token, "")
         resp = resp.strip(tokenizer.bos_token)
         resp = resp.strip()
@@ -346,14 +347,16 @@ def extract_attr_query(prompts, tokenizer):
         this_item = {}
         prompt = prompt.replace(tokenizer.eos_token, "")
         prompt = prompt.replace(tokenizer.pad_token, "")
-        prompt_list = prompt.split(f"Sentence {tokenizer.bos_token}")
-        attributes, sentence = prompt_list[0], prompt_list[1]
+        prompt_list = prompt.split(f" {tokenizer.bos_token} ")
+        attr_list, sentence = prompt_list[:-1], prompt_list[-1]
         sentence = sentence.replace(tokenizer.bos_token, "")
+        sentence = format_question(sentence)
         this_item["raw query"] = sentence
-        attributes = attributes.replace(f"Attributes {tokenizer.bos_token} ", "")
-        attr_list = attributes.split(tokenizer.bos_token)
+        # attributes = attributes.replace(f"Attributes {tokenizer.bos_token} ", "")
+        # attr_list = attributes.split(tokenizer.bos_token)
         this_item["attributes"] = []
         for attr in attr_list:
+            attr = attr.replace(tokenizer.bos_token, "")
             attr = attr.strip()
             if len(attr) > 0:
                 this_item["attributes"].append(attr)
@@ -396,12 +399,13 @@ def format_question(question):
 def extract_attribute(dataset, args):
     # construct the reference dataset
     question2attr = {}
-    data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/test_decompose_all.json"
-    ref_dataset = read_data(data_path)
-    for item in ref_dataset:
-        question = format_question(item["question"])
-        attributes = item["private attributes"]
-        question2attr[question] = attributes
+    data_path = f"{args.root_path}/results/{args.decomp_data}/replace/question_attrs.json"
+    with open(data_path) as f:
+        question2attr = json.load(f)
+    # for item in ref_dataset:
+    #     question = format_question(item["question"])
+    #     attributes = item["private attributes"]
+    #     question2attr[question] = attributes
     # add attributes to the dataset
     output = []
     for sample in dataset:

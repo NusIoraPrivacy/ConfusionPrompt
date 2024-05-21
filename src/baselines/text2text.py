@@ -1,6 +1,7 @@
 from utils.param import parse_args
 from utils.utils import write_list, read_data, get_model_tokenizer, get_eval_model
 from utils.globals import *
+from utils.score_utils import *
 from baselines.bsl_utils import *
 from dataset.get_data import load_bsldataset
 
@@ -15,6 +16,8 @@ import numpy as np
 import json
 from sklearn.metrics import accuracy_score, roc_auc_score
 import os
+import random
+import gc
 
 def sample_noise_Gaussian(d_shape, sensitivity, args):
     sigma = np.sqrt(2* np.log(1.25/args.delta)) / args.epsilon
@@ -87,66 +90,74 @@ def text2text_priv(input_id, tokenizer, model, args):
 
 if __name__ == "__main__":
     args = parse_args()
-    val_dataset = load_bsldataset(args)
-    t2t_tokenizer, t2t_model = get_model_tokenizer(args.t2t_model, args)
-    # apply text2text privatization
-    privatized_dataset = []
-    for sample in tqdm(val_dataset):
-        question = sample["question"]
-        # print(f"Original question: {question}")
-        input_ids = t2t_tokenizer.encode(question, return_tensors='pt').squeeze().to(t2t_model.device)
-        input_ids = text2text_priv(input_ids, t2t_tokenizer, t2t_model, args)
-        sent = t2t_tokenizer.decode(token_ids = input_ids, skip_special_tokens=True)
-        # print(f"Privatized question: {sent}")
-        sample["question"] = sent
-        privatized_dataset.append(sample)
-    
-    lbl_dict = {
-        "strategyQA": ["No", "Yes"],
-        "hotpotqa": ["No", "Yes"],
-        }
-    
-    candidate_labels = lbl_dict[args.eval_data]
-    val_dataloader = DataLoader(
-            privatized_dataset, 
-            batch_size=args.test_batch_size, 
-            collate_fn=seq_collate_fn, 
-            pin_memory=True,
-            shuffle=True
-        )
-    model = get_eval_model(args)
-    output = []
-    output_dir = f"{args.root_path}/results/{args.eval_data}/baseline"
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
-    output_path = f"{output_dir}/predictions_{args.eval_model}_t2t.json"
-    with tqdm(total=len(val_dataloader), unit='batch') as pbar:
-        for step, batch in enumerate(val_dataloader):
-            questions = batch["question"]
-            labels = batch["label"]
-            prompts = create_query_prompt(questions)
-            preds = model.generate(prompts)
-            pbar.update(1)
-            for question, label, pred in zip(questions, labels, preds):
-                label = candidate_labels[label]
-                item = {"question": question,
-                        "label": label,
-                        "prediction": pred}
-                output.append(item)
-            write_list(output_path, output)
-    
-    data_path = f"{args.root_path}/results/{args.eval_data}/baseline/predictions_{args.eval_model}_t2t.json"
-    results = read_data(data_path)
-    labels = []
-    predictions = []
-    for item in results:
-        label = item["label"].lower()
-        label = standard_ans(label)
-        pred = item["prediction"]
-        pred = standard_ans(pred)
-        labels.append(label)
-        predictions.append(pred)
-    acc = accuracy_score(labels, predictions)
-    auc = roc_auc_score(labels, predictions)
-    print(f"Accuracy: {acc}")
-    print(f"AUC: {auc}")
+    for data_name in ["strategyQA", "musique"]:
+        args.eval_data = data_name
+        print(f"test for {args.eval_model} epsilon {args.epsilon} dataset {args.eval_data}")
+        val_dataset = load_bsldataset(args)
+        random.shuffle(val_dataset)
+        val_dataset = val_dataset[:500]
+        if args.debug:
+            val_dataset = val_dataset[:5]
+        data_type = dataset_type[args.eval_data]
+        t2t_tokenizer, t2t_model = get_model_tokenizer(args.t2t_model, args)
+        # apply text2text privatization
+        privatized_dataset = []
+        for sample in tqdm(val_dataset):
+            question = sample["question"]
+            # print(f"Original question: {question}")
+            input_ids = t2t_tokenizer.encode(question, return_tensors='pt').squeeze().to(t2t_model.device)
+            input_ids = text2text_priv(input_ids, t2t_tokenizer, t2t_model, args)
+            privatized_sent = t2t_tokenizer.decode(token_ids = input_ids, skip_special_tokens=True)
+            # print(f"Privatized question: {sent}")
+            sample["privatized question"] = privatized_sent
+            privatized_dataset.append(sample)
+        del t2t_model
+        torch.cuda.empty_cache()
+        gc.collect()
+        
+        val_dataloader = DataLoader(
+                privatized_dataset, 
+                batch_size=args.test_batch_size, 
+                collate_fn=seq_collate_fn, 
+                pin_memory=True,
+                shuffle=True
+            )
+        model = get_eval_model(args)
+        output = []
+        output_dir = f"{args.root_path}/results/{args.eval_data}/baseline"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+        model_name = args.eval_model.split("/")[-1]
+        output_path = f"{output_dir}/predictions_{model_name}_t2t.json"
+        labels = []
+        predictions = []
+        with tqdm(total=len(val_dataloader), unit='batch') as pbar:
+            for step, batch in enumerate(val_dataloader):
+                questions = batch["privatized question"]
+                this_labels = batch["label"]
+                contexts = batch["context"]
+                prompts = create_query_prompt(questions, contexts, args)
+                this_preds = model.generate(prompts)
+                pbar.update(1)
+                for label, pred in zip(this_labels,this_preds):
+                    if data_type == "cls":
+                        pred = standard_ans(pred)
+                    labels.append(label)
+                    predictions.append(pred)
+                # compute evaluation metric
+                if data_type=="qa":
+                    rougnL = rouge(predictions, labels)
+                    f1 = f1_score(predictions, labels)
+                    exact_match = exact_match_score(predictions, labels)
+                    pbar.set_postfix(rougnL=rougnL, f1=f1, exact_match=exact_match)
+                else:
+                    if len(set(labels)) > 1:
+                        acc = accuracy_score(labels, predictions)
+                        auc = roc_auc_score(labels, predictions)
+                        pbar.set_postfix(acc=acc, auc=auc)
+                for question, label, pred in zip(questions, this_labels, this_preds):
+                    item = {"question": question,
+                            "label": label,
+                            "prediction": pred}
+                    output.append(item)
+                write_list(output_path, output)

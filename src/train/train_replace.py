@@ -21,8 +21,21 @@ if __name__ == '__main__':
         for line in dataset_file:
             this_item = json.loads(line)
             replace_inputs.append(this_item) 
+    data_path = f"{args.root_path}/results/{args.decomp_data}/replace/replace_candidates.json"
+    with open(data_path) as f:
+        this_inputs = json.load(f)
+    for sample in this_inputs:
+        question, attributes, replacements = sample["question"], sample["attributes"], sample["replace sentences"]
+        try:
+            replacements = eval(replacements)
+        except Exception as e:
+            continue
+        for replacement in replacements:
+            this_item = {"raw query": question, "attributes": attributes, "replaced query": replacement}
+            replace_inputs.append(this_item)
+    # replace_inputs = replace_inputs[:10]
     rpl_dataset = ReplaceDataset(replace_inputs, tokenizer)
-
+    print(len(rpl_dataset))
     dataloader = DataLoader(
             rpl_dataset, 
             batch_size=args.train_batch_size, 

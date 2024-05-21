@@ -186,6 +186,16 @@ replace_review_template = (
     "Sentence: {sentence}"
 )
 
+replace_review_sim_template = (
+    "Please replaces the key components {attributes} in the following sentence, "
+    "such that the sentence is fluent and reasonable, "
+    "and the alterntive components have similiar meaning as the original sentence. "
+    "Return {n_replaces} replacements for the sentence. "
+    "Strictly respond the list of replacement with the following format: "
+    '["sentence1", "sentence2",...] '
+    "Sentence: {sentence}"
+)
+
 replace_template_multiple = (
     "Please replace the phrases {attributes} in the each of the following sentences, "
     "such that each sentence is fluent and reasonable, "
@@ -236,6 +246,64 @@ fluency_template = (
     "Strictly respond in the form of JSON with the following format: "
     '{{"S1": the score, "S2": the score}}. '
     "Sentences: {sentences}\n"
+)
+
+extract_attr_template = (
+    "Given a query, please extract the key attributes and return a list of key attributes. "
+
+    'Remember to response in the format of ["attribute 1", "attribute 2", ...].\n'
+    "Example 1:\n"
+    "Query: Could ten gallons of seawater crush a six year old?\n"
+    'Assistant: ["seawater crush", "ten gallons", "six year old"]\n'
+
+    "Example 2:\n"
+    "Query: What is the capital of the county that Pine Springs is located in? \n"
+    'Assistant: ["capital of the county", "Pine Springs"]\n'
+
+    "Example 3:\n"
+    "Query: What instrument is played by the person from The Blackout All-Stars? \n"
+    'Assistant: ["play instrument", "The Blackout All-Stars"]\n'
+
+    "Example 4:\n"
+    "Query: Who is the child of the creator of A Distinguished Member of the Humane Society? \n"
+    'Assistant: ["child", "A Distinguished Member of the Humane Society"]\n'
+
+    "Example 5:\n"
+    "Query: Where did the producer of Julius Caesar study or work? \n"
+    'Assistant: ["Julius Caesar", "study or work place"]\n'
+
+    "Query: {query}\n"
+    'Assistant:'
+)
+
+extract_attr_zeroshot_template = (
+    "Given a query, please extract the key attributes and return a list of key attributes. "
+
+    'Remember to response in the format of ["attribute 1", "attribute 2", ...].\n'
+
+    "Query: {query}\n"
+    'Assistant:'
+)
+
+extract_attr_p2f_template = (
+    "Given a query, please extract the key attributes and return a list of key attributes. "
+
+    'Remember to response in the format of ["attribute 1", "attribute 2", ...].\n'
+
+    "Example 1:\n"
+    "Query: We have just launched a new product line at BlueOcean Enterprises. How can we invest in research and development to increase its cost efficiency of operations?\n"
+    'Assistant: ["launched a new product line at BlueOcean Enterprises", "invest in research and development to increase its cost efficiency of operations"]\n'
+
+    "Example 2:\n"
+    "Query: My adult daughter, Emily, has been prescribed a new medication by Physiotherapist Adam. What is the effectiveness of the therapy?\n"
+    'Assistant: ["adult daughter, Emily", "been prescribed a new medication by Physiotherapist Adam", "the recovery time post procedure"]\n'
+
+    "Example 3:\n"
+    "Query: I am participating in a charity event organized by Local community center in Paris. How can I network with professionals?\n"
+    'Assistant: ["participating in a charity event organized by Local community center in Paris", "network with professionals"]\n'
+
+    "Query: {query}\n"
+    'Assistant:'
 )
 
 subquery_template = "{question} Please answer as short as possible."
@@ -327,6 +395,7 @@ step_by_step_template_cls = (
 
 chat_templates = {
     "lmsys/vicuna-33b-v1.3": "<s> [INST] {prompt} [/INST]",
+    "lmsys/vicuna-13b-v1.5": "{prompt}",
     # "meta-llama/Llama-2-7b-chat-hf": "<s> [INST] {prompt} [/INST]",
     # "meta-llama/Meta-Llama-3-8B": "<s> [INST] {prompt} [/INST]",
     "meta-llama/Llama-2-7b-chat-hf": "{prompt}",
@@ -347,6 +416,7 @@ chat_templates = {
     "gpt-4": "{prompt}",
     "gpt-3.5-turbo": "{prompt}",
     "gpt-4-turbo": "{prompt}",
+    "gpt-4o": "{prompt}"
 }
 
 emb_norm_dict = {

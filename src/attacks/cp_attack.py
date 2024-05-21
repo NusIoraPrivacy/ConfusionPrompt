@@ -1,7 +1,7 @@
 from utils.globals import *
 from utils.param import str2bool
 from utils.score_utils import *
-from utils.utils import get_model_tokenizer_qa, get_model_tokenizer_cls
+from utils.utils import get_model_tokenizer_qa, get_model_tokenizer_cls, read_data
 
 import torch
 import torch.optim as optim
@@ -36,15 +36,16 @@ def parse_args():
     parser.add_argument("--test_batch_size", type=int, default=10)
     parser.add_argument("--data_name", type=str, default="strategyQA")
     parser.add_argument("--mu", type=float, default=0.1, help="privacy budget")
-    parser.add_argument("--sim_thd", type=float, default=0.7, help = "threshold for similarity")
+    parser.add_argument("--sim_thd", type=float, default=0.8, help = "threshold for similarity")
     parser.add_argument("--flu_thd", type=int, default=3, help = "threshold for fluency")
     parser.add_argument("--attack_type", type=str, default="reconstruct", choices=["reconstruct", "attribute"])
     parser.add_argument("--num_labels", type=int, default=4, choices=[2, 4])
     parser.add_argument("--disriminator", type=str, default="bert-base-uncased")
     parser.add_argument("--attr_extractor", type=str, default="facebook/bart-large")
-    parser.add_argument("--reconstruct_mode", type=str, default="generate", choices=["select", "generate"])
+    parser.add_argument("--reconstruct_mode", type=str, default="select", choices=["select", "generate"])
     parser.add_argument("--attr_ratio", type=int, default=1, help = "the ratio between false and true attributes")
     parser.add_argument("--debug", type=str2bool, default=False)
+    parser.add_argument("--local_gen", type=str2bool, default=True)
     args = parser.parse_args()
 
     return args
@@ -54,15 +55,18 @@ def get_qualify_inputs(inputs, flu_tokenizer, flu_model, attr_tokenizer, attr_mo
 
     for item in tqdm(inputs):
         question, attributes, rpl_sents = item["question"], item["attributes"], item["replace sentences"]
-        try:
-            rpl_sents = eval(rpl_sents)
-        except Exception as e:
-            continue
+        if not args.local_gen:
+            try:
+                rpl_sents = eval(rpl_sents)
+            except Exception as e:
+                continue
 
         qualified_rpt_sents = []
         qualified_rpl_phrases = []
         for rpl_sent in rpl_sents:
             # evaluate sentence fluency
+            if len(rpl_sent.split()) <= 3:
+                continue
             rpl_inputs = flu_tokenizer(rpl_sent, return_tensors="pt")
             for key in rpl_inputs :
                 rpl_inputs[key] = rpl_inputs[key].to(flu_model.device)
@@ -139,9 +143,13 @@ def init_optim(model, train_loader, args):
 if __name__ == "__main__":
     args = parse_args()
 
-    data_path = f"{_ROOT_PATH}/results/strategyQA/replace/replace_candidates.json"
-    with open(data_path) as f:
-        inputs = json.load(f)
+    if args.local_gen:
+        data_path = f"{_ROOT_PATH}/results/strategyQA/replace/replace_candidates_local.json"
+        inputs = read_data(data_path)
+    else:
+        data_path = f"{_ROOT_PATH}/results/strategyQA/replace/replace_candidates.json"
+        with open(data_path) as f:
+            inputs = json.load(f)
     if args.debug:
         inputs = inputs[:20]
         args.epochs = 3
@@ -158,7 +166,7 @@ if __name__ == "__main__":
     # for each item, filter the replacement satisfying the similairy and fluency criteria   
     train_data = get_qualify_inputs(train_inputs, flu_tokenizer, flu_model, attr_tokenizer, attr_model, sim_model, args)
     test_data = get_qualify_inputs(test_inputs, flu_tokenizer, flu_model, attr_tokenizer, attr_model, sim_model, args)
-
+    # print(train_data[:2])
     # train a model to conduct the attack
     if args.attack_type == "reconstruct":
         if args.reconstruct_mode == "select":

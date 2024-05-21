@@ -24,7 +24,7 @@
 # python -m attacks.dp_attack --sample_train False
 
 dp_types=("text2text")
-eps_list=(1 10)
+eps_list=(50)
 
 for dp in ${dp_types[@]}
 do
@@ -36,7 +36,7 @@ do
 done
 
 dp_types=("paraphrase")
-eps_list=(0.1 1 10)
+eps_list=(50)
 
 for dp in ${dp_types[@]}
 do

@@ -28,6 +28,7 @@ def test_replace(args, model, tokenizer, epoch, test_dataset=True):
                 if idx % args.n_replaces == 0:
                     this_item = json.loads(line)
                     replace_inputs.append(this_item)
+    
     rpl_dataset = ReplaceDataset(replace_inputs, tokenizer)
     test_dataloader = DataLoader(
             rpl_dataset, 

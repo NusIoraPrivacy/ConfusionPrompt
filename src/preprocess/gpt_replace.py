@@ -1,6 +1,7 @@
 from utils.globals import *
 from utils.utils import read_data, write_list, get_eval_model
 from utils.param import str2bool
+
 from tqdm import tqdm
 import itertools
 import argparse
@@ -23,8 +24,8 @@ GEN_REPLACE = True
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument( "--gen_ft_sample", type=str2bool, default=False)
-    parser.add_argument( "--gen_ft_sample_phrase", type=str2bool, default=True)
-    parser.add_argument( "--mutliple_resp", type=str2bool, default=True)
+    parser.add_argument( "--gen_ft_sample_phrase", type=str2bool, default=False)
+    parser.add_argument( "--mutliple_resp", type=str2bool, default=False)
     parser.add_argument( "--gen_replace", type=str2bool, default=False)
     parser.add_argument( "--gen_replace_phrase", type=str2bool, default=False)
     parser.add_argument("--temperature", type=float, default=1,
@@ -38,6 +39,8 @@ def parse_args():
     parser.add_argument("--eval_model", type=str, default="gpt-4-turbo")
     parser.add_argument("--extract_phrase", type=str2bool, default=False)
     parser.add_argument("--extract_phrase_ft", type=str2bool, default=False)
+    parser.add_argument("--gen_replace_local", type=str2bool, default=True)
+    
     args = parser.parse_args()
 
     return args
@@ -268,6 +271,90 @@ if __name__ == "__main__":
                     with open(out_path, "w") as f:
                         json.dump(outputs, f, indent=4)
 
+    if args.gen_replace_local:
+        from dataset.data import ReplaceDataset
+        from transformers import AutoModelForSeq2SeqLM, AutoTokenizer, GenerationConfig, default_data_collator
+        from torch.utils.data import DataLoader
+        import random
+        from utils.utils import extract_attr_query, sing2multi, format_question
+
+        data_path = f"{_ROOT_PATH}/results/strategyQA/replace/replace_candidates.json"
+        with open(data_path) as f:
+            dataset = json.load(f)
+        replace_inputs = []
+        for sample in dataset:
+            question, attributes, replacements = sample["question"], sample["attributes"], sample["replace sentences"]
+            this_item = {"raw query": question, "attributes": attributes, "replaced query": ""}
+            replace_inputs.append(this_item)
+        # print(len(replace_inputs))
+
+        model_dir = f"{_ROOT_PATH}/save_models/replace/strategyQA/sp/bart-large/final"
+        model = AutoModelForSeq2SeqLM.from_pretrained(model_dir, device_map="cuda:1")
+        tokenizer = AutoTokenizer.from_pretrained(model_dir)
+        rpl_dataset = ReplaceDataset(replace_inputs, tokenizer)
+        test_dataloader = DataLoader(
+            rpl_dataset, 
+            batch_size=10, 
+            collate_fn=default_data_collator, 
+            pin_memory=True,
+            )
+        generation_config = GenerationConfig(
+            do_sample=True,
+            temperature=1,
+            max_new_tokens=100,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+        # generate decomposed questions with trained model
+        final_outputs = []
+        
+        with tqdm(total=len(test_dataloader), unit='batch') as pbar:
+
+            for step, batch in enumerate(test_dataloader):
+                # just query gpt when epoch == 0
+                for key in batch.keys():
+                    batch[key] = batch[key].to(model.device)
+                output_list = []
+                for i in range(150):
+                    output_ids = model.generate(
+                            input_ids=batch["input_ids"],
+                            attention_mask=batch["attention_mask"],
+                            # **batch,
+                            generation_config = generation_config,
+                        )
+                    responses = tokenizer.batch_decode(output_ids, skip_special_tokens=True)
+                    questions = tokenizer.batch_decode(batch["input_ids"])
+                    attr_query_lst = extract_attr_query(questions, tokenizer)
+                    for item, resp in zip(attr_query_lst, responses):
+                        item["replacement"] = resp
+                        output_list.append(item)
+                output_list = sorted(output_list, key=lambda d: (d["raw query"], d["attributes"])) 
+                output_list = sing2multi(["raw query", "attributes"], ["replacement"], output_list)
+                for item in output_list:
+                    question, attributes, replacements = item["raw query"], item["attributes"], item["replacement"]
+                    # found_match = False
+                    # for sample in dataset:
+                    #     question, attributes = sample["question"], sample["attributes"]
+                    #     question = format_question(question)
+                        # if question==this_query and set(attributes) == set(this_attr):
+                        #     replacements = sample["replace sentences"]
+                        #     try:
+                        #         replacements = eval(replacements)
+                        #     except Exception as e:
+                        #         break
+                        #     random.shuffle(replacements)
+                        #     replacements = item["replacement"] + replacements[:-10]
+                        #     this_out = {"question": question, "attributes": attributes, "replace sentences": replacements}
+                        #     final_outputs.append(this_out)
+                        #     found_match = True
+                        #     break
+                    this_out = {"question": question, "attributes": attributes, "replace sentences": replacements}
+                    final_outputs.append(this_out)
+
+                # store the file
+                output_dir = f"{_ROOT_PATH}/results/strategyQA/replace"
+                output_path = f"{output_dir}/replace_candidates_local.json"
+                write_list(output_path, final_outputs)
+                pbar.update(1)
     
     if args.extract_phrase_ft:
         data_path = f"{_ROOT_PATH}/results/strategyQA/replace/replace_candidates.json"
