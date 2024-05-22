@@ -65,6 +65,20 @@ def blue(predictions, ground_truths):
         blue_list.append(score)
     return np.mean(blue_list)
 
+def bleu_multiple(predictions, ground_truths):
+    bleu_scorer = BLEU(effective_order=True)
+    blue_list = []
+    for pred, refs in zip(predictions, ground_truths):
+        pred = normalize_answer(pred)
+        best_score = 0
+        for ref in refs:
+            ref = normalize_answer(ref)
+            score = bleu_scorer.sentence_score(hypothesis=pred, references=[ref])
+            score = score.score/100
+            best_score = max(score, best_score)
+        blue_list.append(best_score)
+    return np.mean(blue_list)
+
 def f1_score(predictions, ground_truths):
     f1_list = []
     for prediction, ground_truth in zip(predictions, ground_truths):

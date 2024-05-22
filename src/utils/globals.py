@@ -248,6 +248,19 @@ fluency_template = (
     "Sentences: {sentences}\n"
 )
 
+fluency_single_template = (
+    "Given a sentence, use the scoring rules below to score each sentence's fluency on a scale of 1 to 4: "
+    "1. Score 1: Incomprehensible. Inarticulate/ non-fluent sentence. "
+    "2. Score 2: Low Quality. Partially fluent sentence: (a) only half of the sentence is fluent or "
+    "(b) more than 1 missing words or (c) more than 1 misspelt words or d) contains individual fluent word-groups with missing coherence between them. "
+    "3. Score 3: Moderate. Sentence is predominantly fluent but contains either "
+    "(a) misspelt word or (b) missing word or (c) multiple occurrence of a word. "
+    "4. Score 4: Perfect. Perfectly fluent sentence without any syntactic or grammatical error. "
+    "Strictly respond only the score of 1 to 4."
+    "Sentence: {sentence}\n"
+    "Score: "
+)
+
 extract_attr_template = (
     "Given a query, please extract the key attributes and return a list of key attributes. "
 
@@ -436,7 +449,7 @@ emb_norm_dict = {
     "bert-large-uncased": 2.5,
     "t5-small": 850,
     "t5-base": 680,
-    "t5-large": 650,
+    "google-t5/t5-large": 650,
     "facebook/bart-large": 4.5,
         }
     
@@ -454,7 +467,8 @@ model_causal = {
     "FacebookAI/roberta-large": True,
     "deepset/roberta-base-squad2": True,
     "deepset/roberta-large-squad2": True,
-    "google-t5/t5-large": False
+    "google-t5/t5-large": False,
+    "google/flan-t5-large": False
 }
 
 IGNORE_INDEX = -100

@@ -1,6 +1,6 @@
 {
-    "eval_model": "lmsys/vicuna-13b-v1.5",
-    "eval_data": "hotpotqa",
+    "eval_model": "gpt-4o",
+    "eval_data": "musique",
     "test_batch_size": 1, 
     "max_new_tokens": 50,
     "step_by_step": false,

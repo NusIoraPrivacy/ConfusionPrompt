@@ -80,7 +80,7 @@ def train_recomp(epochs, train_loader, test_loader, model, optimizer, lr_schedul
 if __name__ == "__main__":
     args = parse_args()
     tokenizer, model = get_model_tokenizer_cls(args.base_model, 2)
-
+    
     if args.pretrain_recomp:
         epoch_dict = {"twentyquery": 1, "boolq": 1}
         pretrain_data_list = ["twentyquery", "boolq"]

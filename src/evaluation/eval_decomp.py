@@ -425,18 +425,28 @@ if __name__ == '__main__':
             else:
                 args.mu = 1/mu
             # compute the complexity without decompostion
-            data_path = f"{args.root_path}/results/{args.decomp_data}/decomp/test_decompose_all.json"
-            dataset = read_data(data_path)
-            query2attr = create_attr_dict(dataset)
-            for suffix in ["cot", "dq"]:
+            data_path = f"{args.root_path}/results/{args.decomp_data}/replace/question_attrs.json"
+            with open(data_path) as f:
+                query2attr = json.load(f)
+            temp = {}
+            for question, attr in query2attr.items():
+                question = format_question(question)
+                temp[question] = attr
+            query2attr = temp
+            # for suffix in ["cot", "dq"]:
+            for suffix in ["dq"]:
                 data_path = f"{args.root_path}/results/{args.decomp_data}/baseline/predictions_{args.eval_model}_{suffix}.json"
                 dataset = read_data(data_path)
                 complexities = []
                 query_costs = []
                 for item in dataset:
                     question, answer = item["question"], item["raw_answer"]
-                    attributes = query2attr[question]
+                    try:
+                        attributes = query2attr[question]
+                    except Exception as e:
+                        continue
                     n_attr = len(attributes)
+                    # print(n_attr)
                     if args.mu == 0:
                         complexity = 1
                     else:

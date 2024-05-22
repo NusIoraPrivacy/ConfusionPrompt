@@ -1,0 +1,44 @@
+Traceback (most recent call last):
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/runpy.py", line 196, in _run_module_as_main
+    return _run_code(code, main_globals, None,
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/runpy.py", line 86, in _run_code
+    exec(code, run_globals)
+  File "/mnt/sda/LLM/ConfusionPrompt/src/train/train_decomp.py", line 3, in <module>
+    from evaluation.gen_test_decomp import test_decomp
+  File "/mnt/sda/LLM/ConfusionPrompt/src/evaluation/gen_test_decomp.py", line 4, in <module>
+    from dataset.data import DecompDataset
+  File "/mnt/sda/LLM/ConfusionPrompt/src/dataset/data.py", line 1, in <module>
+    from datasets import Dataset
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/site-packages/datasets/__init__.py", line 18, in <module>
+    from .arrow_dataset import Dataset
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/site-packages/datasets/arrow_dataset.py", line 75, in <module>
+    from . import config
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/site-packages/datasets/config.py", line 57, in <module>
+    TORCH_VERSION = version.parse(importlib.metadata.version("torch"))
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/importlib/metadata/__init__.py", line 996, in version
+    return distribution(distribution_name).version
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/importlib/metadata/__init__.py", line 627, in version
+    return self.metadata['Version']
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/importlib/metadata/__init__.py", line 612, in metadata
+    return _adapters.Message(email.message_from_string(text))
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/__init__.py", line 38, in message_from_string
+    return Parser(*args, **kws).parsestr(s)
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/parser.py", line 67, in parsestr
+    return self.parse(StringIO(text), headersonly=headersonly)
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/parser.py", line 56, in parse
+    feedparser.feed(data)
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/feedparser.py", line 176, in feed
+    self._call_parse()
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/feedparser.py", line 180, in _call_parse
+    self._parse()
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/feedparser.py", line 240, in _parsegen
+    self._parse_headers(headers)
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/feedparser.py", line 488, in _parse_headers
+    self._cur.set_raw(*self.policy.header_source_parse(lastvalue))
+  File "/home/nusbac/miniconda3/envs/pytorch/lib/python3.10/email/_policybase.py", line 302, in header_source_parse
+    value = value.lstrip(' \t') + ''.join(sourcelines[1:])
+KeyboardInterrupt
+Token has not been saved to git credential helper. Pass `add_to_git_credential=True` if you want to set the git credential as well.
+Token is valid (permission: write).
+Your token has been saved to /home/nusbac/.cache/huggingface/token
+Login successful

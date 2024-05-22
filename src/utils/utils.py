@@ -75,7 +75,12 @@ def get_model_tokenizer(model_name, args=None, device_map="auto"):
         except:
             tokenizer = AutoTokenizer.from_pretrained(args.base_model)
         base_model = BertLMHeadModel.from_pretrained(model_name).cuda()
-
+    elif 't5' in model_name:
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_name)
+        except:
+            tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+        base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map=device_map)
     if args:
         if args.use_peft:
             peft_config = LoraConfig(
@@ -402,10 +407,11 @@ def extract_attribute(dataset, args):
     data_path = f"{args.root_path}/results/{args.decomp_data}/replace/question_attrs.json"
     with open(data_path) as f:
         question2attr = json.load(f)
-    # for item in ref_dataset:
-    #     question = format_question(item["question"])
-    #     attributes = item["private attributes"]
-    #     question2attr[question] = attributes
+    temp = {}
+    for question, attr in question2attr.items():
+        question = format_question(question)
+        temp[question] = attr
+    question2attr = temp
     # add attributes to the dataset
     output = []
     for sample in dataset:
@@ -416,14 +422,15 @@ def extract_attribute(dataset, args):
             if len(subans) > 0:
                 decomp_list = decomp.split("<s>")
                 decomp_list = [sent.strip() for sent in decomp_list]
-                attr = question2attr[question]
-                item = {
-                    "question": question,
-                    "decomposition": decomp_list,
-                    "attributes": attr,
-                    "subanswer": subans
-                }
-                output.append(item)
+                if question in question2attr.keys():
+                    attr = question2attr[question]
+                    item = {
+                        "question": question,
+                        "decomposition": decomp_list,
+                        "attributes": attr,
+                        "subanswer": subans
+                    }
+                    output.append(item)
     return output
 
 def num_tokens_from_string(string):

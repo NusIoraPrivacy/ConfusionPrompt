@@ -5,6 +5,8 @@ import json
 
 from datasets import load_dataset
 from tqdm import tqdm
+import pandas as pd
+import random
 
 def load_decomp_dataset(args, split="train"):
     data_file = decomp_dict[args.decomp_data][split]
@@ -312,3 +314,35 @@ def get_squad(args, split="train"):
     for question, context, answer in zip(questions, contexts, answers):
         output.append({"question": question, "context": context, "label": answer})
     return output
+
+def get_p2f(args, split="train"):
+    data_path = f"{args.root_path}/data/{args.decomp_data}/question_attrs_gpt-4o.json"
+    with open(data_path) as f:
+        query2attr = json.load(f)
+    data_path = f"{args.root_path}/data/{args.decomp_data}/agg_fQnA.csv"
+    df = pd.read_csv(data_path)
+    query_lists = df.groupby('QID')['fQ'].apply(list).tolist()
+    if split == "train":
+        query_lists = query_lists[:100]
+        replace_inputs = []
+        for query_list in query_lists:
+            for i in range(len(query_list)):
+                raw_q = query_list[i]
+                other_queries = query_list[:i] + query_list[(i+1):]
+                random.shuffle(other_queries)
+                selected_replace = other_queries[:3]
+                attributes = query2attr[raw_q]
+                for replacement in selected_replace:
+                    this_item = {"raw query": raw_q, "attributes": attributes, "replaced query": replacement}
+                    replace_inputs.append(this_item)
+    elif split == "test":
+        query_lists = query_lists[100:]
+        replace_inputs = []
+        for query_list in query_lists:
+            for i in range(len(query_list)):
+                raw_q = query_list[i]
+                other_queries = query_list[:i] + query_list[(i+1):]
+                attributes = query2attr[raw_q]
+                this_item = {"raw query": raw_q, "attributes": attributes, "replaced query": other_queries}
+                replace_inputs.append(this_item)
+    return replace_inputs

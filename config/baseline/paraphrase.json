@@ -1,9 +1,10 @@
 {
-    "eval_model": "gpt-4",
+    "eval_model": "gpt-4o",
     "para_model": "eugenesiow/bart-paraphrase",
-    "eval_data": "hotpotqa",
+    "eval_data": "strategyQA",
     "test_batch_size": 1, 
     "max_new_tokens": 10,
     "epsilon": 10,
-    "level": "hard"
+    "use_context": true,
+    "debug": false
 }

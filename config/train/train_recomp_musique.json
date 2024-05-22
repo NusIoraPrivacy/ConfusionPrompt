@@ -1,5 +1,5 @@
 {
-    "base_model": "facebook/bart-large",
+    "base_model": "google-t5/t5-large",
     "recomp_data": "musique",
     "epochs": 20,
     "train_batch_size": 6,
@@ -8,6 +8,6 @@
     "lr": 1e-5,
     "token_len": 512,
     "pretrain_recomp": true,
-    "continue_pt": 2,
+    "continue_pt": 0,
     "use_context": true
 }

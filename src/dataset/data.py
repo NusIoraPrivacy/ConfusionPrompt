@@ -72,7 +72,7 @@ class DecompDataset(Dataset):
         }
 
 class ReplaceDataset(Dataset):
-    def __init__(self, replace_inputs, tokenizer, max_words=100, pad=True):
+    def __init__(self, replace_inputs, tokenizer, max_words=200, pad=True):
         self.tokenizer = tokenizer
         self.max_words = max_words
         self.pad = pad

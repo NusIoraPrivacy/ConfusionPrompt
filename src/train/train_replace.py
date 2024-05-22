@@ -1,6 +1,7 @@
 from utils.param import parse_args
 from utils.utils import get_model_tokenizer
 from dataset.data import ReplaceDataset
+from dataset.get_data import get_p2f
 import json
 import os
 from tqdm import tqdm
@@ -8,34 +9,39 @@ from torch.utils.data import DataLoader
 from transformers import default_data_collator, get_scheduler
 import torch.optim as optim
 import numpy as np
-from evaluation.gen_test_replace import test_replace
+from evaluation.gen_test_replace import test_replace, test_replace_p2f
 
 if __name__ == '__main__':
     args = parse_args()
     
     tokenizer, model = get_model_tokenizer(args.base_model, args)
     # load train data
-    data_path = f"{args.root_path}/data/{args.decomp_data}/replace_train_samples.json"
-    replace_inputs = []
-    with open(data_path) as dataset_file:
-        for line in dataset_file:
-            this_item = json.loads(line)
-            replace_inputs.append(this_item) 
-    data_path = f"{args.root_path}/results/{args.decomp_data}/replace/replace_candidates.json"
-    with open(data_path) as f:
-        this_inputs = json.load(f)
-    for sample in this_inputs:
-        question, attributes, replacements = sample["question"], sample["attributes"], sample["replace sentences"]
-        try:
-            replacements = eval(replacements)
-        except Exception as e:
-            continue
-        for replacement in replacements:
-            this_item = {"raw query": question, "attributes": attributes, "replaced query": replacement}
-            replace_inputs.append(this_item)
+    if args.decomp_data == "p2f":
+        replace_inputs = get_p2f(args, split="train")
+        # replace_inputs = replace_inputs[:10]
+        
+    else:
+        data_path = f"{args.root_path}/data/{args.decomp_data}/replace_train_samples.json"
+        replace_inputs = []
+        with open(data_path) as dataset_file:
+            for line in dataset_file:
+                this_item = json.loads(line)
+                replace_inputs.append(this_item) 
+        data_path = f"{args.root_path}/results/{args.decomp_data}/replace/replace_candidates.json"
+        with open(data_path) as f:
+            this_inputs = json.load(f)
+        for sample in this_inputs:
+            question, attributes, replacements = sample["question"], sample["attributes"], sample["replace sentences"]
+            try:
+                replacements = eval(replacements)
+            except Exception as e:
+                continue
+            for replacement in replacements:
+                this_item = {"raw query": question, "attributes": attributes, "replaced query": replacement}
+                replace_inputs.append(this_item)
     # replace_inputs = replace_inputs[:10]
     rpl_dataset = ReplaceDataset(replace_inputs, tokenizer)
-    print(len(rpl_dataset))
+
     dataloader = DataLoader(
             rpl_dataset, 
             batch_size=args.train_batch_size, 
@@ -91,7 +97,10 @@ if __name__ == '__main__':
         if args.val:
             model.eval()
             print(f"Test for epoch {epoch}")
-            test_replace(args, model, tokenizer, epoch+1)
+            if args.decomp_data == "p2f":
+                test_replace_p2f(args, model, tokenizer, epoch+1)
+            else:
+                test_replace(args, model, tokenizer, epoch+1)
 
     model_name = args.base_model.split("/")[-1]
     model_dir = f"{args.root_path}/save_models/replace/{args.decomp_data}/sp/{model_name}/final"

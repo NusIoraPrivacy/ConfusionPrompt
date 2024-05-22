@@ -1,6 +1,8 @@
 from utils.param import parse_args
 from dataset.data import ReplaceDataset
+from dataset.get_data import get_p2f
 from utils.utils import get_model_tokenizer, write_list
+from utils.score_utils import bleu_multiple
 from tqdm import tqdm
 import json
 from torch.utils.data import DataLoader
@@ -73,6 +75,58 @@ def test_replace(args, model, tokenizer, epoch, test_dataset=True):
             output_path = f"{output_dir}/replace_{args.test_mode}_epoch_{epoch}.json"
             write_list(output_path, output_list)
             pbar.update(1)
+
+def test_replace_p2f(args, model, tokenizer, epoch):
+    replace_inputs = get_p2f(args, split="test")
+    # replace_inputs = replace_inputs[:10]
+    generation_config = GenerationConfig(
+            do_sample=True,
+            temperature=args.temperature,
+            max_new_tokens=args.max_new_token,
+            pad_token_id=tokenizer.pad_token_id,
+        )
+    # generate decomposed questions with trained model
+    gen_rpls = []
+    ref_rpls = []
+    output_list = []
+    with tqdm(total=len(replace_inputs), unit='batch') as pbar:
+
+        for step, item in enumerate(replace_inputs):
+            # just query gpt when epoch == 0
+            raw_query = item["raw query"]
+            attrs = item["attributes"]
+            replacements = item["replaced query"]
+            prompt = ""
+            for attr in attrs:
+                prompt += attr + f" {tokenizer.bos_token} "
+            prompt += f"{raw_query}"
+            
+            input_tok = tokenizer(prompt, return_tensors="pt")
+            for key in input_tok:
+                input_tok[key] = input_tok[key].to(model.device)
+            output_ids = model.generate(
+                    **input_tok,
+                    # input_ids=input_ids,
+                    # attention_mask=batch["attention_mask"],
+                    generation_config = generation_config,
+                )
+            gen_rpl = tokenizer.decode(output_ids[0], skip_special_tokens=True)
+            # print(gen_rpl)
+            gen_rpls.append(gen_rpl)
+            ref_rpls.append(replacements)
+            bleu = bleu_multiple(gen_rpls, ref_rpls)
+            # store the file
+            model_name = args.base_model.split("/")[-1]
+            output_dir = f"{args.root_path}/results/{args.decomp_data}/replace/{model_name}"
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir, exist_ok=True)
+            output_path = f"{output_dir}/replace_{args.test_mode}_epoch_{epoch}.json"
+            item["gen replacement"] = gen_rpl
+            output_list.append(item)
+            write_list(output_path, output_list)
+            pbar.update(1)
+            pbar.set_postfix(bleu = bleu)
+    print(f"Bleu for epoch {epoch} is: {bleu}")
 
 if __name__ == '__main__':
     args = parse_args()

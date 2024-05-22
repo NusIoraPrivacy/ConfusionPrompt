@@ -1,7 +1,9 @@
 from accelerate import init_empty_weights
 from utils.param import parse_args
+from utils.globals import *
 from dataset.data import DecompDataset
 from utils.utils import get_model_tokenizer, process_response, write_list
+from utils.score_utils import *
 from dataset.get_data import *
 from tqdm import tqdm
 from torch.utils.data import DataLoader
@@ -32,6 +34,8 @@ def test_decomp(args, model, tokenizer, epoch, mode="test"):
         )
     # generate decomposed questions with trained model
     output_list = []
+    predictions = []
+    references = []
     with tqdm(
         total=int(len(test_dataset)/args.test_batch_size), unit='batch'
     ) as pbar:
@@ -53,6 +57,16 @@ def test_decomp(args, model, tokenizer, epoch, mode="test"):
                 responses = process_response(responses, questions, tokenizer)
                 for query, resp in zip(questions, responses):
                     output_list.append({"question":query, "decomposition": resp})
+                    predictions.append(resp)
+                # print(predictions)
+                ref_sents = []
+                for ref_ids in batch["labels"]:
+                    ref_ids = ref_ids[ref_ids != IGNORE_INDEX]
+                    ref_sent = tokenizer.decode(ref_ids)
+                    ref_sents.append(ref_sent)
+                # print(ref_sents)
+                ref_sents = process_response(ref_sents, questions, tokenizer)
+                references.extend(ref_sents)
                 output_list = sorted(output_list, key=lambda d: d["question"]) 
             # store the file
             model_name = args.base_model.split("/")[-1]
@@ -61,7 +75,11 @@ def test_decomp(args, model, tokenizer, epoch, mode="test"):
                 os.makedirs(output_dir, exist_ok=True)
             output_path = f"{output_dir}/decompose_{args.test_mode}_{mode}_epoch_{epoch}.json"
             write_list(output_path, output_list)
+            # compute the bleu score
+            bleu_score = blue(predictions, references)
             pbar.update(1)
+            pbar.set_postfix(bleu=bleu_score)
+    print(f"BLEU for epoch {epoch}: {bleu_score}")
 
 if __name__ == '__main__':
     args = parse_args()
