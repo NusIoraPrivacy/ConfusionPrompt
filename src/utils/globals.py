@@ -91,6 +91,37 @@ decomp_template = (
     "and make the final sub-question directly lead to the target answer."
     )
 
+mmlu_decomp_template = (
+    "Given a question and a target answer, please decompose the question into a series of sub-questions with the following requirements:\n"
+    "1. The decomposition should satisfy the MECE(Mutually Exclusive Collectively Exhaustive) principle, and the final sub-question would directly lead to the target answer.\n"
+    '2. Remember to return a list of decompositions in the format of ["decomposition 1", "decomposition 2", "decomposition 3"]\n'
+    "3. Limit the number of sub-questions in decomposition as few as possible.\n"
+    "Example 1:\n"
+    "User:\n"
+    "Question: {}\n"
+    "Target answer: {}\n"
+    'Assistant: {}\n'
+
+    "Example 2:\n"
+    "User:\n"
+    "Question: {}\n"
+    "Target answer: {}\n"
+    'Assistant: {}\n'
+
+    "Example 3:\n"
+    "User:\n"
+    "Question: {}\n"
+    "Target answer: {}\n"
+    'Assistant: {}\n'
+
+    "Please decompose the following question:\n"
+    "Question: {}\n"
+    "Target answer: {}\n"
+
+    'Remember to strictly return only a list of decompositions in the format of ["decomposition 1", "decomposition 2", "decomposition 3"], '
+    "and make the final sub-question directly lead to the target answer."
+    )
+
 find_attr_template = (
             'Given a sentence, please identify and return a list of key attributes in the sentence. Strictly return in the format of ["attr1", "attr2", ...]\n'
             "Example:\n"
@@ -460,6 +491,7 @@ logit_range_dict = {
         }
 
 model_causal = {
+    'facebook/bart-base': False,
     "facebook/bart-large": False,
     'bart_pretrained': False,
     "meta-llama/Llama-2-7b-chat-hf": True,
@@ -467,8 +499,10 @@ model_causal = {
     "FacebookAI/roberta-large": True,
     "deepset/roberta-base-squad2": True,
     "deepset/roberta-large-squad2": True,
+    'google-t5/t5-base': False,
     "google-t5/t5-large": False,
-    "google/flan-t5-large": False
+    "google/flan-t5-large": False,
+    "google/flan-t5-base": False
 }
 
 IGNORE_INDEX = -100
