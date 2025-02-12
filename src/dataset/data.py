@@ -367,6 +367,70 @@ class RecompDataset(Dataset):
             "question": questions,
         }
 
+class RecompMMLUDataset(Dataset):
+    def __init__(self, inputs, tokenizer, max_words=500, pad=True, args=None):
+        self.tokenizer = tokenizer
+        self.max_words = max_words
+        self.pad = pad
+        self.inputs = inputs
+        self.args = args
+    
+    def __len__(self):
+        return len(self.inputs)
+    
+    def pad_token(self, input_id, max_words):
+        if self.pad:
+            padding = max_words - input_id.shape[0]
+            if padding > 0:
+                input_id = torch.cat((input_id, torch.zeros(padding, dtype=torch.int64) - 1))
+            elif padding < 0:
+                input_id = input_id[: max_words]
+        if input_id[-1].item() != -1:
+            input_id[-1] = self.tokenizer.eos_token_id
+        return input_id
+    
+    def __getitem__(self, index):
+        # IGNORE_INDEX = self.tokenizer.pad_token_id
+        examples = []
+        labels = []
+        example_masks = []
+        questions = []
+        for i in index:
+            item = self.inputs[i]
+            query = item["question"]
+            choices = item["choices"]
+            decompositions = item["decomposition"]
+            subanswers = item["facts"]
+            label = item["answer"]
+            
+            # create prompt
+            prompt = f"{query}"
+            for cnt, (decomp, subans) in enumerate(zip(decompositions, subanswers), start=1):
+                prompt += f"{self.tokenizer.bos_token} #{cnt}: {decomp} {subans}"
+            prompt += f" {self.tokenizer.bos_token} {choices}"
+            
+            # create input ids
+            input_id = torch.tensor(
+                self.tokenizer.encode(prompt), dtype=torch.int64
+            )
+            input_id = self.pad_token(input_id, self.max_words)
+
+            # create target ids
+            labels.append(label)
+            
+            att_mask = input_id.ge(0)
+            input_id[~att_mask] = self.tokenizer.pad_token_id
+            att_mask = att_mask.float()
+
+            examples.append(input_id)
+            example_masks.append(att_mask)
+
+        return {
+            "input_ids": examples,
+            "labels": labels,
+            "attention_mask": example_masks,
+        }
+
 class RecompPTDataset(Dataset):
     # dataset to pretrain the recomposor
     def __init__(self, inputs, tokenizer, max_words=512, pad=True, args=None, classification=True, causal=False):

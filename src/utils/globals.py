@@ -122,6 +122,31 @@ mmlu_decomp_template = (
     "and make the final sub-question directly lead to the target answer."
     )
 
+mmlu_subanswer_template = (
+    "Given a sub-question, please provide the answer as short as possible.\n"
+    "Example 1:\n"
+    "Background: target question: {}, target answer: {}\n"
+    "User:\n"
+    "Sub-question: {}\n"
+    'Assistant: {}\n'
+
+    "Example 2:\n"
+    "Background: target question: {}, target answer: {}\n"
+    "User:\n"
+    "Sub-question: {}\n"
+    'Assistant: {}\n'
+
+    "Example 3:\n"
+    "Background: target question: {}, target answer: {}\n"
+    "User:\n"
+    "Sub-question: {}\n"
+    'Assistant: {}\n'
+
+    "Please answer the following question as short as possible:\n"
+    "Background: target question: {}, target answer: {}\n"
+    "Sub-question: {}\n"
+)
+
 find_attr_template = (
             'Given a sentence, please identify and return a list of key attributes in the sentence. Strictly return in the format of ["attr1", "attr2", ...]\n'
             "Example:\n"

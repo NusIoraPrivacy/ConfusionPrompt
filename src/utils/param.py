@@ -26,11 +26,11 @@ def parse_args():
         help="root path")
     
     parser.add_argument( "--decomp_data", type=str, default="strategyQA",
-        choices=["strategyQA", "musique", "hotpotqa", "hotpotqa-yn", "mix"],
+        choices=["strategyQA", "musique", "hotpotqa", "hotpotqa-yn", "mix", "mmlu"],
         help="dataset to train decompose model")
     
     parser.add_argument( "--recomp_data", type=str, default="strategyQA",
-        choices=["strategyQA", "musique", "hotpotqa", "mix"],
+        choices=["strategyQA", "musique", "hotpotqa", "mix", "mmlu"],
         help="dataset to train recompose model")
     
     parser.add_argument( "--level", type=str, default="hard",

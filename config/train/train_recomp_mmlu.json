@@ -1,0 +1,13 @@
+{
+    "base_model": "facebook/bart-large",
+    "recomp_data": "mmlu",
+    "epochs": 20,
+    "train_batch_size": 6,
+    "test_batch_size":6,
+    "val": true,
+    "lr": 1e-5,
+    "token_len": 512,
+    "pretrain_recomp": true,
+    "continue_pt": 0,
+    "use_context": false
+}
