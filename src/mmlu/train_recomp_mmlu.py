@@ -40,7 +40,8 @@ def train_recomp(epochs, train_loader, test_loader, model, optimizer, lr_schedul
                 lr_scheduler.step()
                 optimizer.zero_grad()
                 pbar.update(1)
-                pbar.set_postfix(loss=loss.item())
+                avg_loss = sum(loss_list)/len(loss_list)
+                pbar.set_postfix(loss=avg_loss)
 
             print(f'[epoch: {epoch}] Loss: {np.mean(np.array(loss_list))}')
         

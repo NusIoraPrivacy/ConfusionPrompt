@@ -135,7 +135,7 @@ def get_model_tokenizer_qa(model_name, args=None, device_map="auto"):
         base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map=device_map)
     elif 'llama' in model_name:
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = AutoModelForCausalLM.from_pretrained(model_name, num_labels=num_labels, device_map=device_map)
+        base_model = AutoModelForCausalLM.from_pretrained(model_name, device_map=device_map)
     elif "bart" in model_name:
         base_model = AutoModelForSeq2SeqLM.from_pretrained(model_name, device_map=device_map)
     elif "roberta" in model_name:
