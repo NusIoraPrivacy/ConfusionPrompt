@@ -1,4 +1,4 @@
-from transformers import (AutoTokenizer, 
+from transformers import (AutoTokenizer, AutoConfig, 
                           AutoModel, GPT2Tokenizer, GPT2Model, 
                           OPTForSequenceClassification,
                           AutoModelForCausalLM, 
@@ -23,6 +23,7 @@ import os
 import time
 import re
 import tiktoken
+from accelerate import infer_auto_device_map, init_empty_weights
 from openai import (
     RateLimitError,
     APITimeoutError,
@@ -105,7 +106,15 @@ def get_model_tokenizer_cls(model_name, num_labels, args=None, device_map="auto"
         base_model = OPTForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, device_map=device_map)
     elif 'llama' in model_name:
         tokenizer.pad_token = tokenizer.eos_token
-        base_model = LlamaForSequenceClassification.from_pretrained(model_name, num_labels=num_labels, device_map=device_map)
+        config = AutoConfig.from_pretrained(model_name)
+        with init_empty_weights():
+            model = LlamaForSequenceClassification._from_config(config)
+        # print(model)
+        device_map = infer_auto_device_map(model, max_memory={0: "20GiB", 1: "20GiB"}, no_split_module_classes=["LlamaDecoderLayer"])
+        # print(device_map)
+        base_model = LlamaForSequenceClassification.from_pretrained(model_name, num_labels=num_labels).cuda()
+        # device_map=device_map)
+        # base_model = LlamaForSequenceClassification.from_pretrained(model_name, num_labels=num_labels)
     elif "bart" in model_name:
         base_model = BartForSequenceClassification.from_pretrained(model_name, 
                                                                 num_labels=num_labels, device_map=device_map)

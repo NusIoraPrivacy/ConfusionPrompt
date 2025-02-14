@@ -7,6 +7,7 @@ from baselines.bsl_utils import *
 from dataset.get_data import load_bsldataset
 from datasets import Dataset
 from models.gpt import *
+from peft import get_peft_model, LoraConfig, TaskType
 
 import torch
 from torch.utils.data import DataLoader
@@ -66,8 +67,9 @@ class BslData(Dataset):
             question = item["question"]
             choices = item["choices"]
             label = item["answer"]
-            prompt = (f"Question: {question}\n Please select one of the options, and output 1-4 only:\n"
-                      f"A: {choices[0]}\n B: {choices[1]}\n C: {choices[2]}\n D: {choices[3]}")
+            prompt = (f"Question: {question}\n Please select one of the options, and output A-D only:\n"
+                      f"A: {choices[0]}\n B: {choices[1]}\n C: {choices[2]}\n D: {choices[3]}"
+                      "Remember to output only a single character from A to D!")
             prompt = chat_templates[self.args.eval_model].format(prompt=prompt)
             prompts.append(prompt)
             labels.append(label)
@@ -136,7 +138,8 @@ class BslLocalData(Dataset):
 if __name__ == "__main__":
     args = parse_args()
     # for eval_mod in ["gpt-4o", "meta-llama/Llama-2-7b-chat-hf"]:
-    for eval_mod in ["meta-llama/Llama-2-7b-chat-hf"]:
+    # for eval_mod in ["meta-llama/Llama-2-7b-chat-hf"]:
+    for eval_mod in ["lmsys/vicuna-13b-v1.5"]:
         args.eval_model = eval_mod
         print(f"evaluate for on {args.eval_model}")
         train_data, test_data = get_train_test_mmlu(args)
@@ -144,6 +147,17 @@ if __name__ == "__main__":
         candidate_labels = ["A", "B", "C", "D"]
         if "gpt" not in args.eval_model:
             tokenizer, model = get_model_tokenizer_cls(args.eval_model, 4)
+            lora_config = LoraConfig(
+                r=8,
+                # target_modules=["q_proj", "v_proj", "score.weight"],
+                task_type=TaskType.SEQ_CLS,
+                lora_alpha=32,
+                lora_dropout=0.05
+            )
+            model = get_peft_model(model, lora_config)
+            # for name, param in model.named_parameters():
+            #     if param.requires_grad:
+            #         print(name)
             train_dataset = BslLocalData(train_data, tokenizer)
             train_dataloader = DataLoader(
                 train_dataset, 
@@ -172,11 +186,13 @@ if __name__ == "__main__":
                 num_warmup_steps=0,
                 num_training_steps=num_training_steps,
                 )
+            loss_list = []
             with tqdm(total=len(train_dataloader), unit='batch') as pbar:
                 for step, batch in enumerate(train_dataloader):
                     for key in batch.keys():
                         batch[key] = batch[key].to(model.device)
-
+                    # print(model.device)
+                    # print(batch[key].device)
                     output = model(input_ids = batch["input_ids"], 
                             attention_mask = batch["attention_mask"],
                             labels = batch["labels"]) 
@@ -196,18 +212,18 @@ if __name__ == "__main__":
                 for step, batch in enumerate(test_dataloader):
                     for key in batch:
                         batch[key] = batch[key].to(model.device)
-                with torch.no_grad():
-                    outputs = model(
-                            input_ids = batch["input_ids"], 
-                            attention_mask = batch["attention_mask"])
-                logits = outputs.logits
-                y_pred = torch.argmax(logits, -1)
-                predictions += y_pred.tolist()
-                labels += batch["labels"].tolist()
-                acc = accuracy_score(labels, predictions)
-                f1 = f1_score(labels, predictions, average="macro")
-                pbar.update(1)
-                pbar.set_postfix(acc=acc, f1=f1)
+                    with torch.no_grad():
+                        outputs = model(
+                                input_ids = batch["input_ids"], 
+                                attention_mask = batch["attention_mask"])
+                    logits = outputs.logits
+                    y_pred = torch.argmax(logits, -1)
+                    predictions += y_pred.tolist()
+                    labels += batch["labels"].tolist()
+                    acc = accuracy_score(labels, predictions)
+                    f1 = f1_score(labels, predictions, average="macro")
+                    pbar.update(1)
+                    pbar.set_postfix(acc=acc, f1=f1)
 
             print(f"Accuracy: {acc}")
             print(f"F1: {f1}")
@@ -216,8 +232,6 @@ if __name__ == "__main__":
             model = get_eval_model(args)
             labels = []
             predictions = []
-            output = []
-            max_step = 500
             val_dataset = BslData(test_data, args)
             val_dataloader = DataLoader(
                     val_dataset, 
@@ -226,7 +240,7 @@ if __name__ == "__main__":
                     pin_memory=True,
                     shuffle=True
                 )
-            with tqdm(total=min(len(val_dataloader), max_step), unit='batch') as pbar:
+            with tqdm(total=len(val_dataloader), unit='batch') as pbar:
                 for step, batch in enumerate(val_dataloader):
                     prompts = batch["sequences"]
                     this_labels = batch["labels"]
@@ -241,5 +255,5 @@ if __name__ == "__main__":
                     f1 = f1_score(labels, predictions, average="macro")
                     pbar.set_postfix(acc=acc, f1=f1)
 
-                    if step >= max_step:
-                        break
+            print(f"Accuracy: {acc}")
+            print(f"F1: {f1}")

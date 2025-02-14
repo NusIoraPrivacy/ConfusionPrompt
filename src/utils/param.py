@@ -119,7 +119,7 @@ def parse_args():
 
     parser.add_argument("--eval_model", type=str, default="gpt-4",
         choices = ["jondurbin/spicyboros-13b-2.2", "jondurbin/spicyboros-70b-2.2", "gpt-4-1106-preview",
-                "gpt-4", "gpt-3.5-turbo", "lmsys/vicuna-33b-v1.3", "01-ai/Yi-34B-Chat", 
+                "gpt-4", "gpt-3.5-turbo", "lmsys/vicuna-13b-v1.5", "01-ai/Yi-34B-Chat", 
                 "meta-llama/Meta-Llama-3-8B", "meta-llama/Meta-Llama-3-70B-Instruct"],
         help="model to evaluate the replaced output")
 
